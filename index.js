@@ -30,7 +30,7 @@ const COOLDOWN_TIME = 60 * 1000;
 const DATA_FILE = path.join(__dirname, "data.json");
 
 // Replace this with the direct URL of the final Holly Knights GIF banner.
-const BANNER_URL = "https://cdn.discordapp.com/attachments/1542930463495295077/1542930501952864266/IMG_20260828_214420.jpg?ex=6a930581&is=6a91b401&hm=6362ab065128692b2220db4e836e714f4a88208dc3ffc5b530d39a5c2999c80b&";
+const BANNER_URL = "https://cdn.discordapp.com/attachments/1542930463495295077/1546900483422167100/file_00000000cb9c8211a2f59f8b106f4507.png?ex=6aa176d7&is=6aa02557&hm=c6429f873321f8c8e68aa9319142f986d18e5215ca239eddc30105fd5adbe888&";
 
 let data = {
     date: "",
