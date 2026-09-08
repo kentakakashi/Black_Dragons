@@ -90,27 +90,27 @@ function createDashboardEmbed() {
     const total = data.war + data.backup;
 
     const embed = new EmbedBuilder()
-        .setColor(0x5865F2)
-        .setTitle("🏰 HOLLY KNIGHTS")
+        .setColor(0x8B0000)
+        .setTitle("🐉 BLACK DRAGONS")
         .setDescription(
-            "## REINFORCEMENT CENTER\n\n" +
+            "## DRAGON'S CALL\n\n" +
             "The battlefield doesn't wait.\n" +
-            "When your squad needs another knight, send the call.\n\n" +
-            "### ⚔️ REQUEST ASSISTANCE\n\n" +
+            "When the Black Dragons need reinforcements, send the call.\n\n" +
+            "### 🐉 REQUEST ASSISTANCE\n\n" +
             "⚔️ **WAR CALL**\n" +
-            "Gather knights for battle.\n\n" +
+            "Summon the dragons for battle.\n\n" +
             "🛡️ **BACKUP CALL**\n" +
-            "Request immediate reinforcement."
+            "Call for immediate reinforcement."
         )
         .addFields({
             name: "📊 TODAY'S CALLS",
             value:
                 "⚔️ **War** — `" + data.war + "`\n" +
                 "🛡️ **Backup** — `" + data.backup + "`\n" +
-                "📢 **Total** — `" + total + "`"
+                "🐉 **Total** — `" + total + "`"
         })
         .setFooter({
-            text: "Holly Knights • United by oath • Strong in battle"
+            text: "Black Dragons • United by strength • Fearless in battle"
         });
 
     if (BANNER_URL && BANNER_URL.startsWith("http")) {
