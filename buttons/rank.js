@@ -179,10 +179,116 @@ async function handleRankButton(interaction, data) {
   return false;
 }
 
-async function handleRankModal(interaction, data, client) {
-  if (interaction.customId !== "rank_register_modal" && interaction.customId !== "rank_update_modal") {
+async function handleDeclineModal(
+  interaction,
+  data,
+  client
+) {
+  if (
+    !interaction.customId.startsWith(
+      "rank_decline_modal:"
+    )
+  ) {
     return false;
   }
+
+  if (
+    !interaction.memberPermissions?.has(
+      PermissionFlagsBits.Administrator
+    )
+  ) {
+    await interaction.reply({
+      content:
+        "❌ Only administrators can review rank applications.",
+      ephemeral: true
+    });
+
+    return true;
+  }
+
+  const applicationId =
+    interaction.customId.split(":")[1];
+
+  const reason =
+    interaction.fields
+      .getTextInputValue("decline_reason")
+      .trim();
+
+  const application =
+    data.rankApplications.find(
+      app => app.id === applicationId
+    );
+
+  if (
+    !application ||
+    application.status !== "pending_review"
+  ) {
+    await interaction.reply({
+      content:
+        "❌ This application is no longer awaiting review.",
+      ephemeral: true
+    });
+
+    return true;
+  }
+
+  application.status = "declined";
+  application.reviewerId =
+    interaction.user.id;
+  application.reviewedAt =
+    Date.now();
+  application.declineReason =
+    reason;
+
+  saveData(data);
+
+  const rankSystem =
+    require("../systems/rankSystem");
+
+  await rankSystem.recordRankHistory(
+    data,
+    application,
+    "declined",
+    interaction.user.id,
+    null,
+    client
+  );
+
+  await interaction.update({
+    content:
+      "❌ **Application declined.**",
+
+    embeds: [
+      createRankReviewEmbed(
+        application
+      ).addFields({
+        name: "📝 Reason",
+        value: reason
+      })
+    ],
+
+    components: []
+  });
+
+  try {
+    const user =
+      await client.users.fetch(
+        application.userId
+      );
+
+    await user.send(
+      `❌ **Your Black Dragons rank application has been declined.**\n\n` +
+      `**Reason:** ${reason}\n\n` +
+      `You may submit a new application after correcting the issue.`
+    );
+  } catch {
+    console.log(
+      "Could not DM applicant."
+    );
+  }
+
+  return true;
+}
 
   const isUpdate = interaction.customId === "rank_update_modal";
   const robloxUsername = interaction.fields.getTextInputValue("roblox_username").trim();
