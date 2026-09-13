@@ -1,10 +1,24 @@
 const { PermissionFlagsBits } = require("discord.js");
-const { getRank, getRankDisplay, formatKills } = require("../utils/ranks");
+const {
+  getRank,
+  getRankDisplay,
+  formatKills
+} = require("../utils/ranks");
 const { getRankConfig } = require("../utils/config");
 const { createRankModal } = require("../modals/rank");
 const { createDeclineModal } = require("../modals/decline");
 const { createRankReviewEmbed } = require("../embeds/rank");
 const { saveData } = require("../utils/database");
+
+function touchApplication(application, activity = true) {
+  const timestamp = Date.now();
+
+  application.updatedAt = timestamp;
+
+  if (activity) {
+    application.lastActivityAt = timestamp;
+  }
+}
 
 function getPendingApplication(data, userId) {
   if (!Array.isArray(data.rankApplications)) {
@@ -19,25 +33,34 @@ function getPendingApplication(data, userId) {
   );
 }
 
-function newApplication(interaction, isUpdate, kills, robloxUsername) {
+function newApplication(
+  interaction,
+  isUpdate,
+  kills,
+  robloxUsername
+) {
+  const timestamp = Date.now();
+
   return {
-    id: `${Date.now().toString(36)}${Math.random()
-      .toString(36)
-      .slice(2, 6)}`.toUpperCase(),
+    id:
+      `${Date.now().toString(36)}${Math.random()
+        .toString(36)
+        .slice(2, 6)}`.toUpperCase(),
 
     userId: interaction.user.id,
     discordUsername: interaction.user.username,
 
     robloxUsername,
     kills,
-
     rank: getRank(kills).key,
 
     type: isUpdate ? "update" : "register",
 
     status: "pending_upload",
 
-    createdAt: Date.now(),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    lastActivityAt: timestamp,
 
     threadId: null,
     reviewMessageId: null,
@@ -48,15 +71,73 @@ function newApplication(interaction, isUpdate, kills, robloxUsername) {
     reviewerId: null,
     reviewedAt: null,
 
-    declineReason: null
+    declineReason: null,
+
+    closedAt: null,
+    closedById: null,
+    closeReason: null
   };
 }
 
+/*
+ * Find an application from a review button.
+ *
+ * Normally the application must be pending_review.
+ *
+ * If an old database copy incorrectly says pending_upload,
+ * but the clicked Discord review message belongs to this exact
+ * application and proof exists, repair it to pending_review.
+ */
+function getReviewApplication(
+  data,
+  applicationId,
+  interaction
+) {
+  if (!Array.isArray(data.rankApplications)) {
+    data.rankApplications = [];
+  }
+
+  const application = data.rankApplications.find(
+    app => String(app.id) === String(applicationId)
+  );
+
+  if (!application) {
+    return null;
+  }
+
+  if (application.status === "pending_review") {
+    return application;
+  }
+
+  const sameReviewMessage =
+    application.reviewMessageId &&
+    interaction.message?.id &&
+    String(application.reviewMessageId) ===
+      String(interaction.message.id);
+
+  if (
+    application.status === "pending_upload" &&
+    sameReviewMessage &&
+    application.proofUrl
+  ) {
+    application.status = "pending_review";
+    touchApplication(application);
+
+    return application;
+  }
+
+  return null;
+}
+
 /* =========================================================
-   RANK BUTTONS
+   BUTTONS
 ========================================================= */
 
-async function handleRankButton(interaction, data, client) {
+async function handleRankButton(
+  interaction,
+  data,
+  client
+) {
   /* REGISTER / UPDATE */
 
   if (
@@ -65,7 +146,10 @@ async function handleRankButton(interaction, data, client) {
   ) {
     const config = getRankConfig(data);
 
-    if (!config.registrationChannelId || !config.reviewChannelId) {
+    if (
+      !config.registrationChannelId ||
+      !config.reviewChannelId
+    ) {
       await interaction.reply({
         content:
           "❌ The kill-rank system has not been configured yet. An administrator must use `/setup` first.",
@@ -137,14 +221,13 @@ async function handleRankButton(interaction, data, client) {
       interaction.customId.split(":")[1];
 
     const application =
-      data.rankApplications.find(
-        app => app.id === applicationId
+      getReviewApplication(
+        data,
+        applicationId,
+        interaction
       );
 
-    if (
-      !application ||
-      application.status !== "pending_review"
-    ) {
+    if (!application) {
       await interaction.reply({
         content:
           "❌ This application is no longer awaiting review.",
@@ -153,6 +236,11 @@ async function handleRankButton(interaction, data, client) {
 
       return true;
     }
+
+    /*
+     * Persist a repaired pending_review state before accepting.
+     */
+    await saveData(data);
 
     try {
       const rank = getRank(application.kills);
@@ -178,6 +266,8 @@ async function handleRankButton(interaction, data, client) {
         data.rankUsers = {};
       }
 
+      const timestamp = Date.now();
+
       data.rankUsers[application.userId] = {
         discordId: application.userId,
 
@@ -189,23 +279,26 @@ async function handleRankButton(interaction, data, client) {
         rank: rank.key,
 
         verifiedAt:
-          previous?.verifiedAt || Date.now(),
+          previous?.verifiedAt || timestamp,
 
-        updatedAt: Date.now(),
+        updatedAt: timestamp,
 
         lastReviewerId:
           interaction.user.id
       };
 
       application.status = "accepted";
-
       application.reviewerId =
         interaction.user.id;
-
       application.reviewedAt =
-        Date.now();
+        timestamp;
 
-      saveData(data);
+      touchApplication(application);
+
+      /*
+       * Save the accepted state BEFORE writing history.
+       */
+      await saveData(data);
 
       await rankSystem.recordRankHistory(
         data,
@@ -226,8 +319,6 @@ async function handleRankButton(interaction, data, client) {
 
         components: []
       });
-
-      /* DM USER */
 
       try {
         const user =
@@ -260,7 +351,7 @@ async function handleRankButton(interaction, data, client) {
         await interaction.reply({
           content:
             "❌ Something went wrong while accepting the application.\n\n" +
-            "Check that the bot can manage the rank roles.",
+            "Check the Bot-Hosting console for the exact error.",
           ephemeral: true
         });
       }
@@ -292,14 +383,13 @@ async function handleRankButton(interaction, data, client) {
       interaction.customId.split(":")[1];
 
     const application =
-      data.rankApplications.find(
-        app => app.id === applicationId
+      getReviewApplication(
+        data,
+        applicationId,
+        interaction
       );
 
-    if (
-      !application ||
-      application.status !== "pending_review"
-    ) {
+    if (!application) {
       await interaction.reply({
         content:
           "❌ This application is no longer awaiting review.",
@@ -308,6 +398,8 @@ async function handleRankButton(interaction, data, client) {
 
       return true;
     }
+
+    await saveData(data);
 
     await interaction.showModal(
       createDeclineModal(applicationId)
@@ -431,7 +523,7 @@ async function handleRankModal(
     application
   );
 
-  saveData(data);
+  await saveData(data);
 
   try {
     const rankSystem =
@@ -448,7 +540,9 @@ async function handleRankModal(
     application.threadId =
       thread.id;
 
-    saveData(data);
+    touchApplication(application);
+
+    await saveData(data);
 
     await interaction.reply({
       content:
@@ -466,7 +560,9 @@ async function handleRankModal(
     application.status =
       "cancelled";
 
-    saveData(data);
+    touchApplication(application);
+
+    await saveData(data);
 
     await interaction.reply({
       content:
@@ -521,14 +617,13 @@ async function handleDeclineModal(
       .trim();
 
   const application =
-    data.rankApplications.find(
-      app => app.id === applicationId
+    getReviewApplication(
+      data,
+      applicationId,
+      interaction
     );
 
-  if (
-    !application ||
-    application.status !== "pending_review"
-  ) {
+  if (!application) {
     await interaction.reply({
       content:
         "❌ This application is no longer awaiting review.",
@@ -538,6 +633,8 @@ async function handleDeclineModal(
     return true;
   }
 
+  const timestamp = Date.now();
+
   application.status =
     "declined";
 
@@ -545,12 +642,14 @@ async function handleDeclineModal(
     interaction.user.id;
 
   application.reviewedAt =
-    Date.now();
+    timestamp;
 
   application.declineReason =
     reason;
 
-  saveData(data);
+  touchApplication(application);
+
+  await saveData(data);
 
   const rankSystem =
     require("../systems/rankSystem");
@@ -573,7 +672,8 @@ async function handleDeclineModal(
         application
       ).addFields({
         name: "📝 Reason",
-        value: reason
+        value:
+          reason || "No reason provided."
       })
     ],
 
@@ -588,7 +688,9 @@ async function handleDeclineModal(
 
     await user.send(
       `❌ **Your Black Dragons rank application has been declined.**\n\n` +
-      `**Reason:** ${reason}\n\n` +
+      `**Reason:** ${
+        reason || "No reason provided."
+      }\n\n` +
       "You may submit a new application after correcting the issue."
     );
   } catch {
@@ -599,10 +701,6 @@ async function handleDeclineModal(
 
   return true;
 }
-
-/* =========================================================
-   EXPORTS
-========================================================= */
 
 module.exports = {
   handleRankButton,
