@@ -20,8 +20,13 @@ const {
   closeInactiveApplications
 } = require("../systems/rankSystem");
 
+const allies =
+  require("../systems/allies");
+
 module.exports =
-  function registerReady(client) {
+  function registerReady(
+    client
+  ) {
     client.once(
       Events.ClientReady,
       async bot => {
@@ -37,6 +42,12 @@ module.exports =
           client
         );
 
+        /*
+        ==========================================
+        HELP DESK
+        ==========================================
+        */
+
         await setupDashboard(
           client,
           client.appData
@@ -44,7 +55,7 @@ module.exports =
 
         /*
         ==========================================
-        RESTORE RANK PANEL
+        RANK PANEL
         ==========================================
         */
 
@@ -84,14 +95,33 @@ module.exports =
 
         /*
         ==========================================
-        APPLICATION CLEANUP
+        ALLIES MESSAGE
         ==========================================
+
+        IMPORTANT:
+
+        This does NOT create a new message every
+        restart.
+
+        It loads the saved message ID and edits
+        that same message.
         */
 
+        try {
+          await allies.restore(
+            client
+          );
+        } catch (error) {
+          console.error(
+            "❌ Could not restore Allies message:",
+            error
+          );
+        }
+
         /*
-          Check immediately when the bot starts.
-          This also catches applications that became
-          inactive while the bot was offline.
+        ==========================================
+        RANK APPLICATION CLEANUP
+        ==========================================
         */
 
         try {
@@ -101,7 +131,9 @@ module.exports =
               client.appData
             );
 
-          if (closed > 0) {
+          if (
+            closed > 0
+          ) {
             console.log(
               `🧹 Automatically closed ${closed} inactive rank application(s).`
             );
@@ -114,7 +146,8 @@ module.exports =
         }
 
         /*
-          Then check every 5 minutes.
+        Check inactive applications
+        every 5 minutes.
         */
 
         const cleanupTimer =
@@ -127,7 +160,9 @@ module.exports =
                     client.appData
                   );
 
-                if (closed > 0) {
+                if (
+                  closed > 0
+                ) {
                   console.log(
                     `🧹 Automatically closed ${closed} inactive rank application(s).`
                   );
