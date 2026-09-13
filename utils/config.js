@@ -2,7 +2,8 @@ const {
   REST,
   Routes,
   SlashCommandBuilder,
-  PermissionFlagsBits
+  PermissionFlagsBits,
+  ChannelType
 } = require("discord.js");
 
 /*
@@ -11,7 +12,9 @@ HELP DESK CONFIG
 ==================================================
 */
 
-function getHelpDeskConfig(data) {
+function getHelpDeskConfig(
+  data
+) {
   const saved =
     data.config?.helpDesk || {};
 
@@ -39,17 +42,11 @@ RANK CONFIG
 ==================================================
 */
 
-function getRankConfig(data) {
+function getRankConfig(
+  data
+) {
   const saved =
     data.config?.rank || {};
-
-  /*
-    IMPORTANT:
-    Keep the old rankConfig as a fallback.
-
-    This means an older saved configuration
-    can still activate the Rank system after restart.
-  */
 
   const legacy =
     data.rankConfig || {};
@@ -131,6 +128,12 @@ SLASH COMMANDS
 
 function buildCommands() {
   return [
+    /*
+    ==============================
+    SETUP
+    ==============================
+    */
+
     new SlashCommandBuilder()
       .setName("setup")
       .setDescription(
@@ -140,25 +143,44 @@ function buildCommands() {
         PermissionFlagsBits.Administrator.toString()
       ),
 
+    /*
+    ==============================
+    RANK VIEW
+    ==============================
+    */
+
     new SlashCommandBuilder()
       .setName("rank-view")
       .setDescription(
         "View an approved Black Dragons rank."
       )
-      .addUserOption(option =>
-        option
-          .setName("user")
-          .setDescription(
-            "The Discord user to view."
-          )
-          .setRequired(false)
+      .addUserOption(
+        option =>
+          option
+            .setName("user")
+            .setDescription(
+              "The Discord user to view."
+            )
+            .setRequired(false)
       ),
+
+    /*
+    ==============================
+    LEADERBOARD
+    ==============================
+    */
 
     new SlashCommandBuilder()
       .setName("leaderboard")
       .setDescription(
         "Show the Black Dragons kill leaderboard."
       ),
+
+    /*
+    ==============================
+    APPLICATIONS
+    ==============================
+    */
 
     new SlashCommandBuilder()
       .setName("applications")
@@ -167,6 +189,207 @@ function buildCommands() {
       )
       .setDefaultMemberPermissions(
         PermissionFlagsBits.Administrator.toString()
+      ),
+
+    /*
+    ==================================================
+    ALLIES
+    ==================================================
+    */
+
+    new SlashCommandBuilder()
+      .setName("allies")
+      .setDescription(
+        "Manage the Black Dragons allied clans list."
+      )
+      .setDefaultMemberPermissions(
+        PermissionFlagsBits.Administrator.toString()
+      )
+
+      /*
+      ==============================
+      SETUP
+      ==============================
+      */
+
+      .addSubcommand(
+        subcommand =>
+          subcommand
+            .setName("setup")
+            .setDescription(
+              "Create or move the permanent Allies message."
+            )
+            .addChannelOption(
+              option =>
+                option
+                  .setName("channel")
+                  .setDescription(
+                    "The channel where the permanent Allies message should live."
+                  )
+                  .addChannelTypes(
+                    ChannelType.GuildText
+                  )
+                  .setRequired(true)
+            )
+      )
+
+      /*
+      ==============================
+      VIEW
+      ==============================
+      */
+
+      .addSubcommand(
+        subcommand =>
+          subcommand
+            .setName("view")
+            .setDescription(
+              "Preview the current Allies list."
+            )
+      )
+
+      /*
+      ==============================
+      ADD
+      ==============================
+      */
+
+      .addSubcommand(
+        subcommand =>
+          subcommand
+            .setName("add")
+            .setDescription(
+              "Add a new allied clan."
+            )
+
+            .addStringOption(
+              option =>
+                option
+                  .setName("name")
+                  .setDescription(
+                    "The clan/server name."
+                  )
+                  .setRequired(true)
+            )
+
+            .addStringOption(
+              option =>
+                option
+                  .setName("leaders")
+                  .setDescription(
+                    "Leader mentions, e.g. @user1 @user2."
+                  )
+                  .setRequired(true)
+            )
+
+            .addStringOption(
+              option =>
+                option
+                  .setName("invite")
+                  .setDescription(
+                    "Discord invite link."
+                  )
+                  .setRequired(true)
+            )
+
+            .addStringOption(
+              option =>
+                option
+                  .setName("logo")
+                  .setDescription(
+                    "Optional direct URL to the clan logo."
+                  )
+                  .setRequired(false)
+            )
+      )
+
+      /*
+      ==============================
+      REMOVE
+      ==============================
+      */
+
+      .addSubcommand(
+        subcommand =>
+          subcommand
+            .setName("remove")
+            .setDescription(
+              "Remove an allied clan."
+            )
+            .addStringOption(
+              option =>
+                option
+                  .setName("clan")
+                  .setDescription(
+                    "Exact clan name."
+                  )
+                  .setRequired(true)
+            )
+      )
+
+      /*
+      ==============================
+      UPDATE
+      ==============================
+      */
+
+      .addSubcommand(
+        subcommand =>
+          subcommand
+            .setName("update")
+            .setDescription(
+              "Update an existing allied clan."
+            )
+
+            .addStringOption(
+              option =>
+                option
+                  .setName("clan")
+                  .setDescription(
+                    "Current exact clan name."
+                  )
+                  .setRequired(true)
+            )
+
+            .addStringOption(
+              option =>
+                option
+                  .setName("name")
+                  .setDescription(
+                    "New clan name."
+                  )
+                  .setRequired(false)
+            )
+
+            .addStringOption(
+              option =>
+                option
+                  .setName("leaders")
+                  .setDescription(
+                    "New leader mentions."
+                  )
+                  .setRequired(false)
+            )
+
+            .addStringOption(
+              option =>
+                option
+                  .setName("invite")
+                  .setDescription(
+                    "New Discord invite link."
+                  )
+                  .setRequired(false)
+            )
+
+            .addStringOption(
+              option =>
+                option
+                  .setName("logo")
+                  .setDescription(
+                    "New clan logo URL."
+                  )
+                  .setRequired(false)
+            )
       )
   ];
 }
@@ -210,7 +433,8 @@ async function registerCommandsWhenReady(
       client.user.id
     ),
     {
-      body: commands
+      body:
+        commands
     }
   );
 
@@ -218,12 +442,6 @@ async function registerCommandsWhenReady(
     `✅ Registered ${commands.length} slash commands.`
   );
 }
-
-/*
-==================================================
-EXPORTS
-==================================================
-*/
 
 module.exports = {
   getHelpDeskConfig,
