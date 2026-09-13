@@ -1,61 +1,206 @@
 const { Events } = require("discord.js");
-const { handleHelpDeskButton, handleHelpDeskModal } = require("../buttons/helpDesk");
-const { handleRankButton, handleRankModal, handleDeclineModal } = require("../buttons/rank");
-const { handleSetupButton } = require("../buttons/setup");
+
+const {
+  handleHelpDeskButton,
+  handleHelpDeskModal
+} = require("../buttons/helpDesk");
+
+const {
+  handleRankButton,
+  handleRankModal,
+  handleDeclineModal
+} = require("../buttons/rank");
+
+const {
+  handleSetupButton
+} = require("../buttons/setup");
+
 const leaderboard = require("../commands/leaderboard");
 
 module.exports = function registerInteractionCreate(client) {
-  client.on(Events.InteractionCreate, async interaction => {
-    const context = {
-      client,
-      data: client.appData
-    };
+  client.on(
+    Events.InteractionCreate,
+    async interaction => {
+      try {
+        /*
+        ==============================================
+        SLASH COMMANDS
+        ==============================================
+        */
 
-    try {
-      if (interaction.isChatInputCommand()) {
-        const command = client.commands.get(interaction.commandName);
+        if (interaction.isChatInputCommand()) {
+          const command = client.commands.get(
+            interaction.commandName
+          );
 
-        if (!command) return;
+          if (!command) {
+            console.error(
+              `❌ Command not found: /${interaction.commandName}`
+            );
 
-        await command.execute(interaction, context);
-        return;
-      }
+            if (!interaction.replied && !interaction.deferred) {
+              await interaction.reply({
+                content:
+                  "❌ This command is not loaded correctly. Please contact an administrator.",
+                ephemeral: true
+              });
+            }
 
-      if (interaction.isButton()) {
-        if (await handleHelpDeskButton(interaction, client.appData)) return;
-        if (await handleRankButton(interaction, client.appData)) return;
-        if (await handleSetupButton(interaction, client.appData)) return;
-        if (await leaderboard.handleButton(interaction, context)) return;
-        return;
-      }
+            return;
+          }
 
-      if (interaction.isChannelSelectMenu() || interaction.isRoleSelectMenu()) {
-        if (await handleSetupButton(interaction, client.appData)) return;
-        return;
-      }
+          console.log(
+            `📌 Running /${interaction.commandName} for ${interaction.user.tag}`
+          );
 
-      if (interaction.isModalSubmit()) {
-        if (await handleHelpDeskModal(interaction, client.appData, client)) return;
-        if (await handleRankModal(interaction, client.appData, client)) return;
-        if (await handleDeclineModal(interaction, client.appData, client)) return;
-      }
-    } catch (error) {
-      console.error("❌ Interaction handler failed:", error);
+          await command.execute(interaction, {
+            client,
+            data: client.appData
+          });
 
-      const response = {
-        content: "❌ Something went wrong while processing that action.",
-        ephemeral: true
-      };
+          return;
+        }
 
-      if (interaction.deferred || interaction.replied) {
+        /*
+        ==============================================
+        BUTTONS
+        ==============================================
+        */
+
+        if (interaction.isButton()) {
+          if (
+            await handleHelpDeskButton(
+              interaction,
+              client.appData
+            )
+          ) {
+            return;
+          }
+
+          if (
+            await handleRankButton(
+              interaction,
+              client.appData
+            )
+          ) {
+            return;
+          }
+
+          if (
+            await handleSetupButton(
+              interaction,
+              client.appData
+            )
+          ) {
+            return;
+          }
+
+          if (
+            await leaderboard.handleButton(
+              interaction,
+              {
+                client,
+                data: client.appData
+              }
+            )
+          ) {
+            return;
+          }
+
+          return;
+        }
+
+        /*
+        ==============================================
+        SELECT MENUS
+        ==============================================
+        */
+
+        if (
+          interaction.isChannelSelectMenu() ||
+          interaction.isRoleSelectMenu()
+        ) {
+          if (
+            await handleSetupButton(
+              interaction,
+              client.appData
+            )
+          ) {
+            return;
+          }
+
+          return;
+        }
+
+        /*
+        ==============================================
+        MODALS
+        ==============================================
+        */
+
+        if (interaction.isModalSubmit()) {
+          if (
+            await handleHelpDeskModal(
+              interaction,
+              client.appData,
+              client
+            )
+          ) {
+            return;
+          }
+
+          if (
+            await handleRankModal(
+              interaction,
+              client.appData,
+              client
+            )
+          ) {
+            return;
+          }
+
+          if (
+            await handleDeclineModal(
+              interaction,
+              client.appData,
+              client
+            )
+          ) {
+            return;
+          }
+
+          return;
+        }
+      } catch (error) {
+        console.error(
+          "❌ Interaction handler failed:",
+          error
+        );
+
         try {
-          await interaction.followUp(response);
-        } catch {}
-      } else {
-        try {
-          await interaction.reply(response);
-        } catch {}
+          if (
+            interaction.deferred ||
+            interaction.replied
+          ) {
+            await interaction.followUp({
+              content:
+                "❌ Something went wrong while processing that action. Check the bot console for the exact error.",
+              ephemeral: true
+            });
+          } else {
+            await interaction.reply({
+              content:
+                "❌ Something went wrong while processing that action. Check the bot console for the exact error.",
+              ephemeral: true
+            });
+          }
+        } catch (responseError) {
+          console.error(
+            "❌ Could not respond to failed interaction:",
+            responseError
+          );
+        }
       }
     }
-  });
+  );
 };
