@@ -158,6 +158,15 @@ function buildCommands() {
       .setName("leaderboard")
       .setDescription(
         "Show the Black Dragons kill leaderboard."
+      ),
+
+    new SlashCommandBuilder()
+      .setName("applications")
+      .setDescription(
+        "View and manage all open Black Dragons rank applications."
+      )
+      .setDefaultMemberPermissions(
+        PermissionFlagsBits.Administrator.toString()
       )
   ];
 }
