@@ -12,7 +12,8 @@ HELP DESK CONFIG
 */
 
 function getHelpDeskConfig(data) {
-  const saved = data.config?.helpDesk || {};
+  const saved =
+    data.config?.helpDesk || {};
 
   return {
     channelId:
@@ -39,24 +40,85 @@ RANK CONFIG
 */
 
 function getRankConfig(data) {
-  const saved = data.config?.rank || {};
+  const saved =
+    data.config?.rank || {};
+
+  /*
+    IMPORTANT:
+    Keep the old rankConfig as a fallback.
+
+    This means an older saved configuration
+    can still activate the Rank system after restart.
+  */
+
+  const legacy =
+    data.rankConfig || {};
 
   return {
-    registrationChannelId: saved.registrationChannelId || null,
-    reviewChannelId: saved.reviewChannelId || null,
-    historyChannelId: saved.historyChannelId || null,
-    leaderboardChannelId: saved.leaderboardChannelId || null,
+    registrationChannelId:
+      saved.registrationChannelId ||
+      legacy.registrationChannelId ||
+      null,
+
+    reviewChannelId:
+      saved.reviewChannelId ||
+      legacy.reviewChannelId ||
+      null,
+
+    historyChannelId:
+      saved.historyChannelId ||
+      legacy.historyChannelId ||
+      null,
+
+    leaderboardChannelId:
+      saved.leaderboardChannelId ||
+      null,
 
     rankRoleIds: {
-      Z: saved.rankRoleIds?.Z || null,
-      SSS: saved.rankRoleIds?.SSS || null,
-      SS: saved.rankRoleIds?.SS || null,
-      S: saved.rankRoleIds?.S || null,
-      A: saved.rankRoleIds?.A || null,
-      B: saved.rankRoleIds?.B || null,
-      C: saved.rankRoleIds?.C || null,
-      D: saved.rankRoleIds?.D || null,
-      E: saved.rankRoleIds?.E || null
+      Z:
+        saved.rankRoleIds?.Z ||
+        legacy.rankRoleIds?.Z ||
+        null,
+
+      SSS:
+        saved.rankRoleIds?.SSS ||
+        legacy.rankRoleIds?.SSS ||
+        null,
+
+      SS:
+        saved.rankRoleIds?.SS ||
+        legacy.rankRoleIds?.SS ||
+        null,
+
+      S:
+        saved.rankRoleIds?.S ||
+        legacy.rankRoleIds?.S ||
+        null,
+
+      A:
+        saved.rankRoleIds?.A ||
+        legacy.rankRoleIds?.A ||
+        null,
+
+      B:
+        saved.rankRoleIds?.B ||
+        legacy.rankRoleIds?.B ||
+        null,
+
+      C:
+        saved.rankRoleIds?.C ||
+        legacy.rankRoleIds?.C ||
+        null,
+
+      D:
+        saved.rankRoleIds?.D ||
+        legacy.rankRoleIds?.D ||
+        null,
+
+      E:
+        saved.rankRoleIds?.E ||
+        legacy.rankRoleIds?.E ||
+        null
     }
   };
 }
@@ -71,24 +133,32 @@ function buildCommands() {
   return [
     new SlashCommandBuilder()
       .setName("setup")
-      .setDescription("Open the Black Dragons setup wizard.")
+      .setDescription(
+        "Open the Black Dragons setup wizard."
+      )
       .setDefaultMemberPermissions(
         PermissionFlagsBits.Administrator.toString()
       ),
 
     new SlashCommandBuilder()
       .setName("rank-view")
-      .setDescription("View an approved Black Dragons rank.")
+      .setDescription(
+        "View an approved Black Dragons rank."
+      )
       .addUserOption(option =>
         option
           .setName("user")
-          .setDescription("The Discord user to view.")
+          .setDescription(
+            "The Discord user to view."
+          )
           .setRequired(false)
       ),
 
     new SlashCommandBuilder()
       .setName("leaderboard")
-      .setDescription("Show the Black Dragons kill leaderboard.")
+      .setDescription(
+        "Show the Black Dragons kill leaderboard."
+      )
   ];
 }
 
@@ -98,25 +168,38 @@ REGISTER COMMANDS
 ==================================================
 */
 
-async function registerCommandsWhenReady(client) {
+async function registerCommandsWhenReady(
+  client
+) {
   if (!client.user) {
-    throw new Error("Bot is not ready yet.");
+    throw new Error(
+      "Bot is not ready yet."
+    );
   }
 
   if (!process.env.DISCORD_TOKEN) {
-    throw new Error("DISCORD_TOKEN is missing.");
+    throw new Error(
+      "DISCORD_TOKEN is missing."
+    );
   }
 
-  const commands = buildCommands().map(command =>
-    command.toJSON()
-  );
+  const commands =
+    buildCommands().map(
+      command =>
+        command.toJSON()
+    );
 
-  const rest = new REST({
-    version: "10"
-  }).setToken(process.env.DISCORD_TOKEN);
+  const rest =
+    new REST({
+      version: "10"
+    }).setToken(
+      process.env.DISCORD_TOKEN
+    );
 
   await rest.put(
-    Routes.applicationCommands(client.user.id),
+    Routes.applicationCommands(
+      client.user.id
+    ),
     {
       body: commands
     }
@@ -126,6 +209,12 @@ async function registerCommandsWhenReady(client) {
     `✅ Registered ${commands.length} slash commands.`
   );
 }
+
+/*
+==================================================
+EXPORTS
+==================================================
+*/
 
 module.exports = {
   getHelpDeskConfig,
