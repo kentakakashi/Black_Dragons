@@ -171,59 +171,147 @@ async function forwardRankApplication(
   const config =
     getRankConfig(data);
 
+  if (!config.reviewChannelId) {
+    throw new Error(
+      "Rank Review channel ID is not configured."
+    );
+  }
+
+  console.log(
+    `📤 Forwarding application #${application.id} to review channel ${config.reviewChannelId}...`
+  );
+
   const channel =
     await client.channels.fetch(
       config.reviewChannelId
     );
 
-  if (
-    !channel ||
-    !channel.isTextBased()
-  ) {
+  if (!channel) {
     throw new Error(
-      "Rank review channel is not configured correctly."
+      `Rank Review channel ${config.reviewChannelId} could not be found.`
     );
   }
+
+  if (!channel.isTextBased()) {
+    throw new Error(
+      `Rank Review channel ${config.reviewChannelId} is not a text-based channel.`
+    );
+  }
+
+  if (!attachment?.url) {
+    throw new Error(
+      "The uploaded proof attachment has no URL."
+    );
+  }
+
+  /*
+  ------------------------------------------------
+  SAVE PROOF INFORMATION FIRST
+  ------------------------------------------------
+  */
 
   application.proofUrl =
     attachment.url;
 
   application.proofName =
-    attachment.name || null;
-
-  application.status =
-    "pending_review";
+    attachment.name ||
+    "rank-proof.png";
 
   application.lastActivityAt =
     Date.now();
 
-  const message =
-    await channel.send({
-      content:
-        `<@${application.userId}>`,
+  /*
+  ------------------------------------------------
+  CREATE STAFF MESSAGE
+  ------------------------------------------------
+  */
 
-      embeds: [
-        createRankReviewEmbed(
-          application
-        )
-      ],
+  const embed =
+    createRankReviewEmbed(
+      application
+    );
 
-      files: [
-        attachment.url
-      ],
+  let message;
 
-      components: [
-        createRankReviewButtons(
-          application.id
-        )
-      ],
+  try {
+    message =
+      await channel.send({
+        content:
+          `<@${application.userId}>`,
 
-      allowedMentions: {
-        users: [
-          application.userId
-        ]
-      }
-    });
+        embeds: [
+          embed
+        ],
+
+        files: [
+          {
+            attachment:
+              attachment.url,
+
+            name:
+              attachment.name ||
+              "rank-proof.png"
+          }
+        ],
+
+        components: [
+          createRankReviewButtons(
+            application.id
+          )
+        ],
+
+        allowedMentions: {
+          users: [
+            application.userId
+          ]
+        }
+      });
+
+  } catch (error) {
+    console.error(
+      `❌ Discord rejected application #${application.id} forwarding.`
+    );
+
+    console.error(
+      "❌ Error name:",
+      error?.name
+    );
+
+    console.error(
+      "❌ Error message:",
+      error?.message
+    );
+
+    console.error(
+      "❌ Error code:",
+      error?.code
+    );
+
+    /*
+      IMPORTANT:
+      Do NOT mark the application as pending_review.
+      It remains pending_upload so the user can retry.
+    */
+
+    application.status =
+      "pending_upload";
+
+    application.lastActivityAt =
+      Date.now();
+
+    await saveData(data);
+
+    throw error;
+  }
+
+  /*
+  ------------------------------------------------
+  ONLY MARK AS REVIEW AFTER SUCCESS
+  ------------------------------------------------
+  */
+
+  application.status =
+    "pending_review";
 
   application.reviewMessageId =
     message.id;
@@ -232,6 +320,10 @@ async function forwardRankApplication(
     Date.now();
 
   await saveData(data);
+
+  console.log(
+    `✅ Application #${application.id} successfully forwarded to staff. Message ID: ${message.id}`
+  );
 
   return message;
 }
@@ -767,16 +859,12 @@ async function processProofMessage(
       "✅"
     );
 
-    application._client =
-      client;
-
     await forwardRankApplication(
-      application,
-      attachment,
-      client,
-      data
-    );
-
+  application,
+  attachment,
+  client,
+  data
+);
     await saveData(data);
 
     await message.channel.send(
