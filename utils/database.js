@@ -1,52 +1,29 @@
 const fs = require("fs");
 const path = require("path");
 
-const {
-  initializeApp,
-  cert,
-  getApps
-} = require("firebase-admin/app");
-
-const {
-  getFirestore
-} = require("firebase-admin/firestore");
+const { initializeApp, cert, getApps } = require("firebase-admin/app");
+const { getFirestore } = require("firebase-admin/firestore");
 
 const DATA_FILE = path.join(__dirname, "..", "data.json");
-
-let firestore = null;
-let firebaseEnabled = false;
-
-let saveQueue = Promise.resolve();
-
-/*
-==================================================
-DEFAULT DATA
-==================================================
-*/
 
 const defaultData = {
   date: "",
   war: 0,
   backup: 0,
-
   dashboardMessageId: null,
 
   config: {
     helpDesk: {
-      dashboardChannelId:
-        process.env.DASHBOARD_CHANNEL_ID || null,
-
-      warRoleId:
-        process.env.WAR_ROLE_ID || null,
-
-      backupRoleId:
-        process.env.BACKUP_ROLE_ID || null
+      channelId: null,
+      warRoleId: null,
+      backupRoleId: null
     },
 
     rank: {
       registrationChannelId: null,
       reviewChannelId: null,
       historyChannelId: null,
+      leaderboardChannelId: null,
 
       rankRoleIds: {
         Z: null,
@@ -62,10 +39,7 @@ const defaultData = {
     }
   },
 
-  /*
-  Legacy field is intentionally retained.
-  Existing bot code may still use it.
-  */
+  // Legacy structure kept for compatibility.
   rankConfig: {
     registrationChannelId: null,
     reviewChannelId: null,
@@ -85,26 +59,15 @@ const defaultData = {
   },
 
   rankUsers: {},
-
   rankApplications: [],
-
   rankHistory: []
 };
 
-/*
-==================================================
-DATE
-==================================================
-*/
+let firestore = null;
+let firebaseReady = false;
 
-function getToday() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Kolkata",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).format(new Date());
-}
+// Prevent multiple Firestore saves from running over each other.
+let saveQueue = Promise.resolve();
 
 /*
 ==================================================
@@ -113,7 +76,87 @@ SAFE CLONE
 */
 
 function clone(value) {
-  return JSON.parse(JSON.stringify(value));
+  if (value === undefined) return undefined;
+
+  return JSON.parse(
+    JSON.stringify(value, (_, currentValue) => {
+      if (typeof currentValue === "bigint") {
+        return currentValue.toString();
+      }
+
+      return currentValue;
+    })
+  );
+}
+
+/*
+==================================================
+SAFE JSON SERIALIZATION
+==================================================
+
+Discord / Firebase / other libraries can sometimes put
+BigInt values inside objects.
+
+Normal JSON.stringify() crashes on BigInt.
+
+This replacer converts BigInt to strings ONLY when
+creating the local data.json backup.
+
+==================================================
+*/
+
+function safeJsonStringify(value, space = 2) {
+  return JSON.stringify(
+    value,
+    (_, currentValue) => {
+      if (typeof currentValue === "bigint") {
+        return currentValue.toString();
+      }
+
+      return currentValue;
+    },
+    space
+  );
+}
+
+/*
+==================================================
+REMOVE INTERNAL RUNTIME VALUES
+==================================================
+
+Some runtime-only properties may be attached to objects
+while the bot is processing Discord interactions.
+
+Anything beginning with "_" is not permanent database data.
+==================================================
+*/
+
+function removeInternalFields(value) {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(removeInternalFields);
+  }
+
+  if (typeof value === "object") {
+    const output = {};
+
+    for (const [key, currentValue] of Object.entries(value)) {
+      if (key.startsWith("_")) continue;
+
+      output[key] = removeInternalFields(currentValue);
+    }
+
+    return output;
+  }
+
+  return value;
 }
 
 /*
@@ -122,178 +165,66 @@ MERGE DATA
 ==================================================
 */
 
-function mergeData(saved) {
+function mergeData(saved = {}) {
   const data = clone(defaultData);
 
-  if (!saved || typeof saved !== "object") {
-    applyEnvironmentFallbacks(data);
-    return data;
-  }
+  Object.assign(data, saved);
 
-  /*
-  Top-level values
-  */
-  if (typeof saved.date === "string") {
-    data.date = saved.date;
-  }
+  data.config = {
+    ...clone(defaultData.config),
+    ...(saved.config || {}),
 
-  if (typeof saved.war === "number") {
-    data.war = saved.war;
-  }
+    helpDesk: {
+      ...clone(defaultData.config.helpDesk),
+      ...((saved.config || {}).helpDesk || {})
+    },
 
-  if (typeof saved.backup === "number") {
-    data.backup = saved.backup;
-  }
+    rank: {
+      ...clone(defaultData.config.rank),
+      ...((saved.config || {}).rank || {}),
 
-  if (
-    saved.dashboardMessageId !== undefined
-  ) {
-    data.dashboardMessageId =
-      saved.dashboardMessageId;
-  }
-
-  /*
-  Config
-  */
-  if (saved.config && typeof saved.config === "object") {
-    data.config = {
-      ...data.config,
-      ...saved.config,
-
-      helpDesk: {
-        ...data.config.helpDesk,
-        ...(saved.config.helpDesk || {})
-      },
-
-      rank: {
-        ...data.config.rank,
-        ...(saved.config.rank || {}),
-
-        rankRoleIds: {
-          ...data.config.rank.rankRoleIds,
-          ...(
-            saved.config.rank?.rankRoleIds || {}
-          )
-        }
+      rankRoleIds: {
+        ...clone(defaultData.config.rank.rankRoleIds),
+        ...(((saved.config || {}).rank || {}).rankRoleIds || {})
       }
-    };
-  }
+    }
+  };
 
   /*
-  Legacy rankConfig
+  ------------------------------------------------
+  LEGACY RANK CONFIG MIGRATION
+  ------------------------------------------------
   */
-  if (
-    saved.rankConfig &&
-    typeof saved.rankConfig === "object"
-  ) {
-    data.rankConfig = {
-      ...data.rankConfig,
+
+  if (saved.rankConfig) {
+    data.config.rank = {
+      ...data.config.rank,
       ...saved.rankConfig,
 
       rankRoleIds: {
-        ...data.rankConfig.rankRoleIds,
+        ...data.config.rank.rankRoleIds,
         ...(saved.rankConfig.rankRoleIds || {})
       }
     };
   }
 
-  /*
-  If the old system has rankConfig but the new
-  config.rank does not, migrate it.
-  */
-  const legacy = data.rankConfig;
+  data.rankConfig = {
+    ...clone(defaultData.rankConfig),
 
-  const newRank = data.config.rank;
+    ...(saved.rankConfig || {}),
 
-  if (
-    !newRank.registrationChannelId &&
-    legacy.registrationChannelId
-  ) {
-    newRank.registrationChannelId =
-      legacy.registrationChannelId;
-  }
+    rankRoleIds: {
+      ...clone(defaultData.rankConfig.rankRoleIds),
 
-  if (
-    !newRank.reviewChannelId &&
-    legacy.reviewChannelId
-  ) {
-    newRank.reviewChannelId =
-      legacy.reviewChannelId;
-  }
-
-  if (
-    !newRank.historyChannelId &&
-    legacy.historyChannelId
-  ) {
-    newRank.historyChannelId =
-      legacy.historyChannelId;
-  }
-
-  for (const rank of Object.keys(
-    newRank.rankRoleIds
-  )) {
-    if (
-      !newRank.rankRoleIds[rank] &&
-      legacy.rankRoleIds?.[rank]
-    ) {
-      newRank.rankRoleIds[rank] =
-        legacy.rankRoleIds[rank];
+      ...((saved.rankConfig || {}).rankRoleIds || {})
     }
-  }
+  };
 
   /*
-  Players
+  ------------------------------------------------
+  ENVIRONMENT VARIABLE FALLBACKS
+  ------------------------------------------------
   */
-  if (
-    saved.rankUsers &&
-    typeof saved.rankUsers === "object"
-  ) {
-    data.rankUsers = {
-      ...saved.rankUsers
-    };
-  }
-
-  /*
-  Applications
-  */
-  if (Array.isArray(saved.rankApplications)) {
-    data.rankApplications = [
-      ...saved.rankApplications
-    ];
-  }
-
-  /*
-  History
-  */
-  if (Array.isArray(saved.rankHistory)) {
-    data.rankHistory = [
-      ...saved.rankHistory
-    ];
-  }
-
-  /*
-  Environment variables are only fallbacks.
-  Existing saved configuration is NOT overwritten.
-  */
-  applyEnvironmentFallbacks(data);
-
-  return data;
-}
-
-/*
-==================================================
-ENVIRONMENT FALLBACKS
-==================================================
-*/
-
-function applyEnvironmentFallbacks(data) {
-  if (
-    !data.config.helpDesk.dashboardChannelId &&
-    process.env.DASHBOARD_CHANNEL_ID
-  ) {
-    data.config.helpDesk.dashboardChannelId =
-      process.env.DASHBOARD_CHANNEL_ID;
-  }
 
   if (
     !data.config.helpDesk.warRoleId &&
@@ -311,86 +242,86 @@ function applyEnvironmentFallbacks(data) {
       process.env.BACKUP_ROLE_ID;
   }
 
+  if (
+    !data.config.helpDesk.channelId &&
+    process.env.DASHBOARD_CHANNEL_ID
+  ) {
+    data.config.helpDesk.channelId =
+      process.env.DASHBOARD_CHANNEL_ID;
+  }
+
   /*
-  Keep legacy config synchronized.
+  ------------------------------------------------
+  RANK DATA
+  ------------------------------------------------
   */
-  data.rankConfig = {
-    ...data.rankConfig,
 
-    registrationChannelId:
-      data.config.rank.registrationChannelId,
+  data.rankUsers =
+    saved.rankUsers &&
+    typeof saved.rankUsers === "object"
+      ? saved.rankUsers
+      : {};
 
-    reviewChannelId:
-      data.config.rank.reviewChannelId,
+  data.rankApplications =
+    Array.isArray(saved.rankApplications)
+      ? saved.rankApplications
+      : [];
 
-    historyChannelId:
-      data.config.rank.historyChannelId,
-
-    rankRoleIds: {
-      ...data.config.rank.rankRoleIds
-    }
-  };
+  data.rankHistory =
+    Array.isArray(saved.rankHistory)
+      ? saved.rankHistory
+      : [];
 
   return data;
 }
 
 /*
 ==================================================
-LOCAL JSON
+LOCAL LOAD
 ==================================================
 */
 
 function loadLocalData() {
+  let saved = {};
+
   try {
-    if (!fs.existsSync(DATA_FILE)) {
-      const fresh = clone(defaultData);
-
-      applyEnvironmentFallbacks(fresh);
-
-      fs.writeFileSync(
-        DATA_FILE,
-        JSON.stringify(fresh, null, 2),
-        "utf8"
+    if (fs.existsSync(DATA_FILE)) {
+      saved = JSON.parse(
+        fs.readFileSync(DATA_FILE, "utf8")
       );
-
-      return fresh;
     }
-
-    const raw = fs.readFileSync(
-      DATA_FILE,
-      "utf8"
-    );
-
-    if (!raw.trim()) {
-      return clone(defaultData);
-    }
-
-    const parsed = JSON.parse(raw);
-
-    return mergeData(parsed);
   } catch (error) {
     console.error(
-      "❌ Failed to load local data.json:",
+      "❌ Could not load data.json:",
       error
     );
-
-    /*
-    NEVER destroy the existing file if it is
-    malformed. Start safely from defaults.
-    */
-    const fallback = clone(defaultData);
-
-    applyEnvironmentFallbacks(fallback);
-
-    return fallback;
   }
+
+  return mergeData(saved);
 }
+
+/*
+==================================================
+LOCAL SAVE
+==================================================
+
+IMPORTANT:
+This is where the previous BigInt error happened.
+
+safeJsonStringify() prevents:
+
+TypeError: Do not know how to serialize a BigInt
+
+==================================================
+*/
 
 function saveLocalData(data) {
   try {
+    const cleaned = removeInternalFields(data);
+
     fs.writeFileSync(
       DATA_FILE,
-      JSON.stringify(data, null, 2),
+      safeJsonStringify(cleaned, 2),
       "utf8"
     );
 
@@ -412,13 +343,17 @@ FIREBASE INITIALIZATION
 */
 
 function initializeFirebase() {
+  if (firebaseReady && firestore) {
+    return firestore;
+  }
+
   const projectId =
     process.env.FIREBASE_PROJECT_ID;
 
   const clientEmail =
     process.env.FIREBASE_CLIENT_EMAIL;
 
-  let privateKey =
+  const privateKey =
     process.env.FIREBASE_PRIVATE_KEY;
 
   if (
@@ -426,133 +361,71 @@ function initializeFirebase() {
     !clientEmail ||
     !privateKey
   ) {
-    console.warn(
-      "⚠️ Firebase environment variables are missing."
+    throw new Error(
+      "Firebase environment variables are missing. Required: FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY"
     );
-
-    console.warn(
-      "⚠️ The bot will use local data.json only."
-    );
-
-    firebaseEnabled = false;
-    firestore = null;
-
-    return false;
   }
 
-  try {
-    privateKey = privateKey.replace(
-      /\\n/g,
-      "\n"
-    );
+  /*
+  Environment variables commonly contain literal \n.
+  Firebase needs actual newline characters.
+  */
 
-    let app;
+  const formattedPrivateKey =
+    privateKey.replace(/\\n/g, "\n");
 
-    if (getApps().length > 0) {
-      app = getApps()[0];
-    } else {
-      app = initializeApp({
-        credential: cert({
-          projectId,
-          clientEmail,
-          privateKey
-        })
-      });
-    }
+  const serviceAccount = {
+    projectId,
+    clientEmail,
+    privateKey: formattedPrivateKey
+  };
 
-    firestore = getFirestore(app);
+  let app;
 
-    firebaseEnabled = true;
-
-    console.log(
-      "🔥 Firebase Firestore connected."
-    );
-
-    return true;
-  } catch (error) {
-    firebaseEnabled = false;
-    firestore = null;
-
-    console.error(
-      "❌ Firebase initialization failed:",
-      error
-    );
-
-    return false;
+  if (getApps().length > 0) {
+    app = getApps()[0];
+  } else {
+    app = initializeApp({
+      credential: cert(serviceAccount)
+    });
   }
+
+  firestore = getFirestore(app);
+  firebaseReady = true;
+
+  console.log("🔥 Firebase Firestore connected.");
+
+  return firestore;
 }
 
 /*
 ==================================================
-REMOVE INTERNAL / NON-FIRESTORE DATA
+FIRESTORE READ HELPERS
 ==================================================
 */
 
-function cleanForFirestore(value) {
-  if (value === undefined) {
-    return null;
-  }
+async function readCollectionAsMap(collectionName) {
+  const result = {};
+  const snapshot =
+    await firestore.collection(collectionName).get();
 
-  if (value === null) {
-    return null;
-  }
+  snapshot.forEach(doc => {
+    result[doc.id] = doc.data();
+  });
 
-  if (typeof value === "function") {
-    return undefined;
-  }
-
-  if (typeof value === "bigint") {
-    return value.toString();
-  }
-
-  if (Array.isArray(value)) {
-    return value
-      .map(item => cleanForFirestore(item))
-      .filter(item => item !== undefined);
-  }
-
-  if (typeof value === "object") {
-    const output = {};
-
-    for (const [key, item] of Object.entries(value)) {
-      /*
-      Internal runtime properties such as
-      application._client must NEVER be stored.
-      */
-      if (key.startsWith("_")) {
-        continue;
-      }
-
-      const cleaned =
-        cleanForFirestore(item);
-
-      if (cleaned !== undefined) {
-        output[key] = cleaned;
-      }
-    }
-
-    return output;
-  }
-
-  return value;
+  return result;
 }
 
-/*
-==================================================
-FIRESTORE HELPERS
-==================================================
-*/
+async function readCollectionAsArray(collectionName) {
+  const result = [];
+  const snapshot =
+    await firestore.collection(collectionName).get();
 
-function getConfigRef() {
-  return firestore
-    .collection("config")
-    .doc("server");
-}
+  snapshot.forEach(doc => {
+    result.push(doc.data());
+  });
 
-function getCountersRef() {
-  return firestore
-    .collection("helpDesk")
-    .doc("counters");
+  return result;
 }
 
 /*
@@ -561,503 +434,636 @@ LOAD FROM FIRESTORE
 ==================================================
 */
 
-async function loadFromFirestore(localData) {
-  if (!firebaseEnabled || !firestore) {
-    return localData;
+async function loadFirestoreData() {
+  console.log(
+    "☁️ Loading persistent data from Firestore..."
+  );
+
+  const players =
+    await readCollectionAsMap("players");
+
+  const applications =
+    await readCollectionAsArray("applications");
+
+  const history =
+    await readCollectionAsArray("rankHistory");
+
+  let configData = {};
+  let countersData = {};
+
+  try {
+    const configSnapshot =
+      await firestore
+        .collection("config")
+        .doc("server")
+        .get();
+
+    if (configSnapshot.exists) {
+      configData = configSnapshot.data() || {};
+    }
+  } catch (error) {
+    console.error(
+      "❌ Could not load server config:",
+      error
+    );
   }
 
   try {
-    console.log(
-      "☁️ Loading persistent data from Firestore..."
-    );
-
-    const data = mergeData(localData);
-
-    /*
-    ----------------------------------------------
-    CONFIG
-    ----------------------------------------------
-    */
-
-    const configSnap =
-      await getConfigRef().get();
-
-    if (configSnap.exists) {
-      const cloudConfig =
-        configSnap.data() || {};
-
-      if (cloudConfig.config) {
-        data.config = {
-          ...data.config,
-          ...cloudConfig.config,
-
-          helpDesk: {
-            ...data.config.helpDesk,
-            ...(cloudConfig.config.helpDesk || {})
-          },
-
-          rank: {
-            ...data.config.rank,
-            ...(cloudConfig.config.rank || {}),
-
-            rankRoleIds: {
-              ...data.config.rank.rankRoleIds,
-              ...(
-                cloudConfig.config.rank?.rankRoleIds ||
-                {}
-              )
-            }
-          }
-        };
-      }
-
-      if (
-        cloudConfig.dashboardMessageId !==
-        undefined
-      ) {
-        data.dashboardMessageId =
-          cloudConfig.dashboardMessageId;
-      }
-
-      if (cloudConfig.rankConfig) {
-        data.rankConfig =
-          mergeData({
-            rankConfig:
-              cloudConfig.rankConfig
-          }).rankConfig;
-      }
-    }
-
-    /*
-    ----------------------------------------------
-    HELP DESK COUNTERS
-    ----------------------------------------------
-    */
-
-    const countersSnap =
-      await getCountersRef().get();
-
-    if (countersSnap.exists) {
-      const counters =
-        countersSnap.data() || {};
-
-      if (typeof counters.date === "string") {
-        data.date = counters.date;
-      }
-
-      if (typeof counters.war === "number") {
-        data.war = counters.war;
-      }
-
-      if (
-        typeof counters.backup === "number"
-      ) {
-        data.backup = counters.backup;
-      }
-    }
-
-    /*
-    ----------------------------------------------
-    PLAYERS
-    ----------------------------------------------
-    */
-
-    const playersSnap =
+    const countersSnapshot =
       await firestore
-        .collection("players")
+        .collection("helpDesk")
+        .doc("counters")
         .get();
 
-    for (const doc of playersSnap.docs) {
-      const player = doc.data();
-
-      if (player && player.discordId) {
-        data.rankUsers[player.discordId] = {
-          ...player
-        };
-      } else {
-        /*
-        Fallback to document ID.
-        */
-        data.rankUsers[doc.id] = {
-          ...player,
-          discordId:
-            player.discordId || doc.id
-        };
-      }
+    if (countersSnapshot.exists) {
+      countersData =
+        countersSnapshot.data() || {};
     }
-
-    /*
-    ----------------------------------------------
-    APPLICATIONS
-    ----------------------------------------------
-    */
-
-    const applicationsSnap =
-      await firestore
-        .collection("applications")
-        .get();
-
-    const applicationMap = new Map();
-
-    for (
-      const application
-      of data.rankApplications
-    ) {
-      if (application?.id) {
-        applicationMap.set(
-          application.id,
-          application
-        );
-      }
-    }
-
-    for (
-      const doc
-      of applicationsSnap.docs
-    ) {
-      const application = doc.data();
-
-      applicationMap.set(
-        application.id || doc.id,
-        application
-      );
-    }
-
-    data.rankApplications =
-      Array.from(applicationMap.values());
-
-    /*
-    ----------------------------------------------
-    RANK HISTORY
-    ----------------------------------------------
-    */
-
-    const historySnap =
-      await firestore
-        .collection("rankHistory")
-        .get();
-
-    const historyMap = new Map();
-
-    for (
-      const history
-      of data.rankHistory
-    ) {
-      const id =
-        history._id ||
-        history.id ||
-        [
-          history.applicationId,
-          history.timestamp,
-          history.action
-        ]
-          .filter(Boolean)
-          .join("_");
-
-      historyMap.set(id, history);
-    }
-
-    for (
-      const doc
-      of historySnap.docs
-    ) {
-      const history = doc.data();
-
-      historyMap.set(
-        doc.id,
-        history
-      );
-    }
-
-    data.rankHistory =
-      Array.from(historyMap.values());
-
-    applyEnvironmentFallbacks(data);
-
-    /*
-    ----------------------------------------------
-    LOCAL BACKUP
-    ----------------------------------------------
-    */
-
-    saveLocalData(data);
-
-    console.log(
-      `☁️ Players loaded: ${
-        Object.keys(data.rankUsers || {})
-          .length
-      }`
-    );
-
-    console.log(
-      `☁️ Applications loaded: ${
-        (data.rankApplications || [])
-          .length
-      }`
-    );
-
-    console.log(
-      `☁️ Rank history loaded: ${
-        (data.rankHistory || [])
-          .length
-      }`
-    );
-
-    console.log(
-      "✅ Firestore/local data reconciliation complete."
-    );
-
-    /*
-    ----------------------------------------------
-    IMPORTANT:
-    Immediately write local-only records to cloud.
-    This gives old local records a permanent home.
-    ----------------------------------------------
-    */
-
-    await saveToFirestore(data);
-
-    return data;
   } catch (error) {
     console.error(
-      "❌ Failed to load Firestore data:",
+      "❌ Could not load Help Desk counters:",
       error
     );
-
-    /*
-    If Firestore cannot be read, DO NOT replace
-    local data with empty data.
-    */
-    console.warn(
-      "⚠️ Keeping local data.json as fallback."
-    );
-
-    return localData;
   }
+
+  console.log(
+    `☁️ Players loaded: ${Object.keys(players).length}`
+  );
+
+  console.log(
+    `☁️ Applications loaded: ${applications.length}`
+  );
+
+  console.log(
+    `☁️ Rank history loaded: ${history.length}`
+  );
+
+  return {
+    players,
+    applications,
+    history,
+    config: configData,
+    counters: countersData
+  };
 }
 
 /*
 ==================================================
-SAVE TO FIRESTORE
+RECONCILE LOCAL + FIRESTORE
+==================================================
+
+Firestore is the permanent database.
+
+Local data is also preserved.
+
+We merge both instead of blindly replacing one with
+the other.
+
+This prevents an old local data.json from destroying
+new Firestore records.
 ==================================================
 */
 
-async function saveToFirestore(data) {
-  if (!firebaseEnabled || !firestore) {
-    return;
-  }
-
-  const safeData =
-    cleanForFirestore(data);
+function reconcileData(localData, cloudData) {
+  const merged = mergeData(localData);
 
   /*
-  ----------------------------------------------
-  CONFIG
-  ----------------------------------------------
-  */
-
-  await getConfigRef().set(
-    {
-      config:
-        safeData.config || {},
-
-      rankConfig:
-        safeData.rankConfig || {},
-
-      dashboardMessageId:
-        safeData.dashboardMessageId || null,
-
-      updatedAt:
-        new Date().toISOString()
-    },
-    {
-      merge: true
-    }
-  );
-
-  /*
-  ----------------------------------------------
-  HELP DESK
-  ----------------------------------------------
-  */
-
-  await getCountersRef().set(
-    {
-      date:
-        safeData.date || "",
-
-      war:
-        typeof safeData.war === "number"
-          ? safeData.war
-          : 0,
-
-      backup:
-        typeof safeData.backup === "number"
-          ? safeData.backup
-          : 0,
-
-      updatedAt:
-        new Date().toISOString()
-    },
-    {
-      merge: true
-    }
-  );
-
-  /*
-  ----------------------------------------------
+  ------------------------------------------------
   PLAYERS
-  ----------------------------------------------
+  ------------------------------------------------
   */
 
-  const players =
-    safeData.rankUsers || {};
+  merged.rankUsers = {
+    ...(localData.rankUsers || {}),
+    ...(cloudData.players || {})
+  };
+
+  /*
+  ------------------------------------------------
+  APPLICATIONS
+  ------------------------------------------------
+
+  Merge by application ID so we don't duplicate them.
+  ------------------------------------------------
+  */
+
+  const applications = new Map();
 
   for (
-    const [discordId, player]
-    of Object.entries(players)
+    const application
+    of localData.rankApplications || []
   ) {
-    if (!player || typeof player !== "object") {
-      continue;
+    if (!application?.id) continue;
+
+    applications.set(
+      String(application.id),
+      application
+    );
+  }
+
+  for (
+    const application
+    of cloudData.applications || []
+  ) {
+    if (!application?.id) continue;
+
+    const key = String(application.id);
+
+    const existing =
+      applications.get(key);
+
+    applications.set(
+      key,
+      existing
+        ? {
+            ...existing,
+            ...application
+          }
+        : application
+    );
+  }
+
+  merged.rankApplications =
+    Array.from(applications.values());
+
+  /*
+  ------------------------------------------------
+  RANK HISTORY
+  ------------------------------------------------
+
+  History is append-only.
+
+  We preserve every unique history entry.
+  ------------------------------------------------
+  */
+
+  const history = new Map();
+
+  const addHistory = entry => {
+    if (!entry) return;
+
+    const key = [
+      entry.applicationId || "",
+      entry.action || "",
+      entry.timestamp || "",
+      entry.userId || ""
+    ].join(":");
+
+    history.set(key, entry);
+  };
+
+  for (
+    const entry of localData.rankHistory || []
+  ) {
+    addHistory(entry);
+  }
+
+  for (
+    const entry of cloudData.history || []
+  ) {
+    addHistory(entry);
+  }
+
+  merged.rankHistory =
+    Array.from(history.values());
+
+  /*
+  ------------------------------------------------
+  CONFIG
+  ------------------------------------------------
+  */
+
+  if (cloudData.config) {
+    merged.config = {
+      ...merged.config,
+      ...cloudData.config,
+
+      helpDesk: {
+        ...merged.config.helpDesk,
+        ...(cloudData.config.helpDesk || {})
+      },
+
+      rank: {
+        ...merged.config.rank,
+        ...(cloudData.config.rank || {}),
+
+        rankRoleIds: {
+          ...merged.config.rank.rankRoleIds,
+          ...((cloudData.config.rank || {})
+            .rankRoleIds || {})
+        }
+      }
+    };
+  }
+
+  /*
+  ------------------------------------------------
+  HELP DESK COUNTERS
+  ------------------------------------------------
+  */
+
+  if (
+    cloudData.counters &&
+    Object.keys(cloudData.counters).length
+  ) {
+    if (
+      typeof cloudData.counters.war ===
+      "number"
+    ) {
+      merged.war =
+        Math.max(
+          Number(merged.war || 0),
+          Number(cloudData.counters.war)
+        );
     }
 
-    await firestore
-      .collection("players")
-      .doc(String(discordId))
-      .set(
-        {
-          ...player,
+    if (
+      typeof cloudData.counters.backup ===
+      "number"
+    ) {
+      merged.backup =
+        Math.max(
+          Number(merged.backup || 0),
+          Number(cloudData.counters.backup)
+        );
+    }
 
+    if (cloudData.counters.date) {
+      merged.date =
+        cloudData.counters.date;
+    }
+
+    if (cloudData.counters.dashboardMessageId) {
+      merged.dashboardMessageId =
+        cloudData.counters.dashboardMessageId;
+    }
+  }
+
+  return mergeData(merged);
+}
+
+/*
+==================================================
+FIRESTORE DOCUMENT ID
+==================================================
+*/
+
+function safeDocumentId(value, fallback) {
+  const stringValue =
+    String(value ?? fallback);
+
+  /*
+  Firestore document IDs cannot contain "/".
+  */
+
+  return stringValue
+    .replace(/\//g, "_")
+    .slice(0, 1500);
+}
+
+/*
+==================================================
+SAVE PLAYERS
+==================================================
+*/
+
+async function savePlayers(data) {
+  const entries =
+    Object.entries(data.rankUsers || {});
+
+  if (!entries.length) return;
+
+  for (
+    let start = 0;
+    start < entries.length;
+    start += 400
+  ) {
+    const batch =
+      firestore.batch();
+
+    const chunk =
+      entries.slice(start, start + 400);
+
+    for (
+      const [discordId, player]
+      of chunk
+    ) {
+      const ref =
+        firestore
+          .collection("players")
+          .doc(
+            safeDocumentId(
+              discordId,
+              `player_${start}`
+            )
+          );
+
+      batch.set(
+        ref,
+        removeInternalFields({
+          ...player,
           discordId:
             player.discordId ||
-            String(discordId),
-
-          updatedAt:
-            player.updatedAt ||
-            new Date().toISOString()
-        },
-        {
-          merge: true
-        }
+            discordId
+        }),
+        { merge: true }
       );
-  }
-
-  /*
-  ----------------------------------------------
-  APPLICATIONS
-  ----------------------------------------------
-  */
-
-  const applications =
-    safeData.rankApplications || [];
-
-  for (const application of applications) {
-    if (!application?.id) {
-      continue;
     }
 
-    await firestore
-      .collection("applications")
-      .doc(String(application.id))
-      .set(
-        application,
-        {
-          merge: true
-        }
-      );
-  }
-
-  /*
-  ----------------------------------------------
-  HISTORY
-  ----------------------------------------------
-  */
-
-  const history =
-    safeData.rankHistory || [];
-
-  for (let i = 0; i < history.length; i++) {
-    const entry = history[i];
-
-    if (!entry || typeof entry !== "object") {
-      continue;
-    }
-
-    const historyId =
-      entry._id ||
-      entry.id ||
-      [
-        entry.applicationId || "history",
-        entry.userId || "user",
-        entry.timestamp || i
-      ]
-        .join("_")
-        .replace(/[^a-zA-Z0-9_-]/g, "_")
-        .slice(0, 500);
-
-    await firestore
-      .collection("rankHistory")
-      .doc(String(historyId))
-      .set(
-        {
-          ...entry,
-
-          _id: String(historyId)
-        },
-        {
-          merge: true
-        }
-      );
+    await batch.commit();
   }
 }
 
 /*
 ==================================================
-PUBLIC SAVE FUNCTION
+SAVE APPLICATIONS
+==================================================
+*/
+
+async function saveApplications(data) {
+  const applications =
+    Array.isArray(data.rankApplications)
+      ? data.rankApplications
+      : [];
+
+  if (!applications.length) return;
+
+  for (
+    let start = 0;
+    start < applications.length;
+    start += 400
+  ) {
+    const batch =
+      firestore.batch();
+
+    const chunk =
+      applications.slice(
+        start,
+        start + 400
+      );
+
+    for (
+      let index = 0;
+      index < chunk.length;
+      index++
+    ) {
+      const application =
+        chunk[index];
+
+      if (!application) continue;
+
+      const id =
+        application.id ||
+        `application_${start + index}`;
+
+      const ref =
+        firestore
+          .collection("applications")
+          .doc(
+            safeDocumentId(id, `application_${index}`)
+          );
+
+      batch.set(
+        ref,
+        removeInternalFields(application),
+        { merge: true }
+      );
+    }
+
+    await batch.commit();
+  }
+}
+
+/*
+==================================================
+SAVE RANK HISTORY
+==================================================
+*/
+
+async function saveRankHistory(data) {
+  const history =
+    Array.isArray(data.rankHistory)
+      ? data.rankHistory
+      : [];
+
+  if (!history.length) return;
+
+  for (
+    let start = 0;
+    start < history.length;
+    start += 400
+  ) {
+    const batch =
+      firestore.batch();
+
+    const chunk =
+      history.slice(
+        start,
+        start + 400
+      );
+
+    for (
+      let index = 0;
+      index < chunk.length;
+      index++
+    ) {
+      const entry =
+        chunk[index];
+
+      if (!entry) continue;
+
+      /*
+      Stable ID prevents duplicate history records
+      when saveData() runs multiple times.
+      */
+
+      const id = [
+        entry.applicationId || "unknown",
+        entry.action || "unknown",
+        entry.timestamp || start + index,
+        entry.userId || "unknown"
+      ].join("_");
+
+      const ref =
+        firestore
+          .collection("rankHistory")
+          .doc(
+            safeDocumentId(
+              id,
+              `history_${start + index}`
+            )
+          );
+
+      batch.set(
+        ref,
+        removeInternalFields(entry),
+        { merge: true }
+      );
+    }
+
+    await batch.commit();
+  }
+}
+
+/*
+==================================================
+SAVE CONFIG
+==================================================
+*/
+
+async function saveConfig(data) {
+  const config =
+    removeInternalFields(
+      data.config || {}
+    );
+
+  await firestore
+    .collection("config")
+    .doc("server")
+    .set(
+      config,
+      { merge: true }
+    );
+}
+
+/*
+==================================================
+SAVE HELP DESK COUNTERS
+==================================================
+*/
+
+async function saveCounters(data) {
+  await firestore
+    .collection("helpDesk")
+    .doc("counters")
+    .set(
+      removeInternalFields({
+        date: data.date || "",
+        war: Number(data.war || 0),
+        backup: Number(data.backup || 0),
+        dashboardMessageId:
+          data.dashboardMessageId || null
+      }),
+      { merge: true }
+    );
+}
+
+/*
+==================================================
+SAVE EVERYTHING TO FIRESTORE
+==================================================
+*/
+
+async function saveFirestoreData(data) {
+  if (!firebaseReady || !firestore) {
+    throw new Error(
+      "Firestore is not initialized."
+    );
+  }
+
+  await savePlayers(data);
+  await saveApplications(data);
+  await saveRankHistory(data);
+  await saveConfig(data);
+  await saveCounters(data);
+}
+
+/*
+==================================================
+QUEUE FIRESTORE SAVE
+==================================================
+
+Multiple parts of the bot call saveData().
+
+We serialize the saves so simultaneous writes don't
+fight each other.
+==================================================
+*/
+
+function queueFirestoreSave(data) {
+  const snapshot =
+    removeInternalFields(
+      clone(data)
+    );
+
+  saveQueue =
+    saveQueue
+      .then(async () => {
+        try {
+          await saveFirestoreData(
+            snapshot
+          );
+
+          console.log(
+            "☁️ Database saved."
+          );
+        } catch (error) {
+          console.error(
+            "❌ Firestore save failed:",
+            error
+          );
+        }
+      })
+      .catch(error => {
+        console.error(
+          "❌ Database save queue error:",
+          error
+        );
+      });
+
+  return saveQueue;
+}
+
+/*
+==================================================
+PUBLIC saveData()
+==================================================
+
+Existing files already call:
+
+saveData(data);
+
+We keep it synchronous from their point of view.
+
+It immediately writes the local backup and queues
+the permanent Firestore save.
 ==================================================
 */
 
 function saveData(data) {
   /*
-  Save the local backup immediately.
+  Always make the local backup first.
 
-  This means even if Firestore is temporarily
-  unavailable, data.json is updated.
+  BigInt values are safely converted to strings.
   */
+
   saveLocalData(data);
 
   /*
-  Queue cloud writes so multiple simultaneous
-  Discord interactions don't write over each
-  other unpredictably.
+  Firestore save happens asynchronously.
   */
-  saveQueue = saveQueue
-    .then(async () => {
-      try {
-        await saveToFirestore(data);
 
-        console.log(
-          "☁️ Database saved."
-        );
-      } catch (error) {
-        console.error(
-          "❌ Firestore save failed:",
-          error
-        );
+  if (firebaseReady && firestore) {
+    queueFirestoreSave(data);
+  }
+}
 
-        console.error(
-          "⚠️ Local data.json backup was still saved."
-        );
-      }
-    })
-    .catch(error => {
-      console.error(
-        "❌ Database save queue error:",
-        error
-      );
-    });
+/*
+==================================================
+TODAY
+==================================================
+*/
 
-  return saveQueue;
+function getToday() {
+  return new Intl.DateTimeFormat(
+    "en-CA",
+    {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }
+  ).format(new Date());
 }
 
 /*
@@ -1066,15 +1072,16 @@ DAILY RESET
 ==================================================
 */
 
-function checkDailyResetLocal(data) {
-  const today = getToday();
+function checkDailyReset(data) {
+  const today =
+    getToday();
 
   if (data.date !== today) {
     data.date = today;
     data.war = 0;
     data.backup = 0;
 
-    saveLocalData(data);
+    saveData(data);
 
     return true;
   }
@@ -1082,63 +1089,85 @@ function checkDailyResetLocal(data) {
   return false;
 }
 
-async function checkDailyReset(data) {
-  const changed =
-    checkDailyResetLocal(data);
-
-  if (changed) {
-    await saveData(data);
-  }
-
-  return changed;
-}
-
 /*
 ==================================================
-==============
 INITIALIZE DATABASE
 ==================================================
 */
 
 async function initializeDatabase() {
-  let data = loadLocalData();
+  /*
+  ------------------------------------------------
+  LOAD LOCAL BACKUP FIRST
+  ------------------------------------------------
+  */
+
+  const localData =
+    loadLocalData();
 
   /*
-  First update the local daily state.
+  ------------------------------------------------
+  INITIALIZE FIREBASE
+  ------------------------------------------------
   */
-  checkDailyResetLocal(data);
 
-  /*
-  Then connect to Firebase if credentials
-  are available.
-  */
   initializeFirebase();
 
   /*
-  Load cloud data and reconcile it with local.
+  ------------------------------------------------
+  LOAD CLOUD DATA
+  ------------------------------------------------
   */
-  if (firebaseEnabled) {
-    data = await loadFromFirestore(data);
+
+  let cloudData;
+
+  try {
+    cloudData =
+      await loadFirestoreData();
+  } catch (error) {
+    console.error(
+      "❌ Could not load data from Firestore:",
+      error
+    );
+
+    throw error;
   }
 
   /*
-  Ensure today's counters are correct after
-  reconciliation.
+  ------------------------------------------------
+  RECONCILE
+  ------------------------------------------------
   */
-  const changed =
-    checkDailyResetLocal(data);
 
-  if (changed) {
-    await saveData(data);
-  }
+  const mergedData =
+    reconcileData(
+      localData,
+      cloudData
+    );
 
   /*
-  Always leave the latest state in the local
-  backup as well.
-  */
-  saveLocalData(data);
+  ------------------------------------------------
+  SAVE THE MERGED RESULT
+  ------------------------------------------------
 
-  return data;
+  This makes sure data found locally is also copied
+  into Firestore, while cloud records remain safe.
+  ------------------------------------------------
+  */
+
+  saveLocalData(
+    mergedData
+  );
+
+  await saveFirestoreData(
+    mergedData
+  );
+
+  console.log(
+    "✅ Firestore/local data reconciliation complete."
+  );
+
+  return mergedData;
 }
 
 /*
@@ -1148,9 +1177,10 @@ EXPORTS
 */
 
 module.exports = {
+  DATA_FILE,
   loadData: loadLocalData,
   saveData,
-  checkDailyReset,
+  initializeDatabase,
   getToday,
-  initializeDatabase
+  checkDailyReset
 };
