@@ -133,6 +133,40 @@ module.exports = function registerInteractionCreate(
           }
 
           /* ---------------------------------------------
+   APPLICATION MANAGEMENT
+--------------------------------------------- */
+
+if (
+  customId.startsWith(
+    "applications_close:"
+  ) ||
+  customId.startsWith(
+    "applications:"
+  )
+) {
+  const applications =
+    require("../commands/applications");
+
+  if (
+    typeof applications.handleButton ===
+    "function"
+  ) {
+    const handled =
+      await applications.handleButton(
+        interaction,
+        {
+          client,
+          data: client.appData
+        }
+      );
+
+    if (handled) {
+      return;
+    }
+  }
+}
+
+          /* ---------------------------------------------
              LEADERBOARD
           --------------------------------------------- */
 
