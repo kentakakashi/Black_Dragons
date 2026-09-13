@@ -1,0 +1,24 @@
+{
+  "date": "",
+  "war": 0,
+  "backup": 0,
+  "dashboardMessageId": null,
+  "rankConfig": {
+    "registrationChannelId": null,
+    "reviewChannelId": null,
+    "historyChannelId": null,
+    "rankRoleIds": {
+      "Z": null,
+      "SSS": null,
+      "SS": null,
+      "S": null,
+      "A": null,
+      "B": null,
+      "C": null,
+      "D": null,
+      "E": null
+    }
+  },
+  "rankUsers": {},
+  "rankApplications": []
+}
