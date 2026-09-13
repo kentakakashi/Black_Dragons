@@ -2,42 +2,88 @@ const {
   REST,
   Routes,
   SlashCommandBuilder,
-  PermissionFlagsBits,
-  ChannelType
+  PermissionFlagsBits
 } = require("discord.js");
+
+/*
+==================================================
+HELP DESK CONFIG
+==================================================
+*/
 
 function getHelpDeskConfig(data) {
   const saved = data.config?.helpDesk || {};
+
   return {
-    channelId: saved.channelId || process.env.DASHBOARD_CHANNEL_ID || null,
-    warRoleId: saved.warRoleId || process.env.WAR_ROLE_ID || null,
-    backupRoleId: saved.backupRoleId || process.env.BACKUP_ROLE_ID || null
+    channelId:
+      saved.channelId ||
+      process.env.DASHBOARD_CHANNEL_ID ||
+      null,
+
+    warRoleId:
+      saved.warRoleId ||
+      process.env.WAR_ROLE_ID ||
+      null,
+
+    backupRoleId:
+      saved.backupRoleId ||
+      process.env.BACKUP_ROLE_ID ||
+      null
   };
 }
 
+/*
+==================================================
+RANK CONFIG
+==================================================
+*/
+
 function getRankConfig(data) {
   const saved = data.config?.rank || {};
+
   return {
     registrationChannelId: saved.registrationChannelId || null,
     reviewChannelId: saved.reviewChannelId || null,
     historyChannelId: saved.historyChannelId || null,
     leaderboardChannelId: saved.leaderboardChannelId || null,
-    rankRoleIds: saved.rankRoleIds || {}
+
+    rankRoleIds: {
+      Z: saved.rankRoleIds?.Z || null,
+      SSS: saved.rankRoleIds?.SSS || null,
+      SS: saved.rankRoleIds?.SS || null,
+      S: saved.rankRoleIds?.S || null,
+      A: saved.rankRoleIds?.A || null,
+      B: saved.rankRoleIds?.B || null,
+      C: saved.rankRoleIds?.C || null,
+      D: saved.rankRoleIds?.D || null,
+      E: saved.rankRoleIds?.E || null
+    }
   };
 }
+
+/*
+==================================================
+SLASH COMMANDS
+==================================================
+*/
 
 function buildCommands() {
   return [
     new SlashCommandBuilder()
       .setName("setup")
-      .setDescription("Open the guided Black Dragons bot setup wizard.")
-      .setDefaultMemberPermissions(PermissionFlagsBits.Administrator.toString()),
+      .setDescription("Open the Black Dragons setup wizard.")
+      .setDefaultMemberPermissions(
+        PermissionFlagsBits.Administrator.toString()
+      ),
 
     new SlashCommandBuilder()
       .setName("rank-view")
-      .setDescription("View an approved player's Black Dragons rank.")
+      .setDescription("View an approved Black Dragons rank.")
       .addUserOption(option =>
-        option.setName("user").setDescription("Discord user to view.").setRequired(false)
+        option
+          .setName("user")
+          .setDescription("The Discord user to view.")
+          .setRequired(false)
       ),
 
     new SlashCommandBuilder()
@@ -46,44 +92,44 @@ function buildCommands() {
   ];
 }
 
-async function registerCommands(client) {
-  client.commands.clear();
-
-  for (const command of buildCommands()) {
-    client.commands.set(command.name, command);
-  }
-
-  const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
-
-  try {
-    await rest.put(
-      Routes.applicationCommands(client.user?.id || "0"),
-      { body: buildCommands().map(command => command.toJSON()) }
-    );
-  } catch (error) {
-    // The first registration happens after login in ready.js.
-    // This call is intentionally harmless if client.user isn't available yet.
-    if (client.user?.id && client.user.id !== "0") {
-      console.error("❌ Could not register slash commands:", error);
-    }
-  }
-}
+/*
+==================================================
+REGISTER COMMANDS
+==================================================
+*/
 
 async function registerCommandsWhenReady(client) {
-  const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
+  if (!client.user) {
+    throw new Error("Bot is not ready yet.");
+  }
+
+  if (!process.env.DISCORD_TOKEN) {
+    throw new Error("DISCORD_TOKEN is missing.");
+  }
+
+  const commands = buildCommands().map(command =>
+    command.toJSON()
+  );
+
+  const rest = new REST({
+    version: "10"
+  }).setToken(process.env.DISCORD_TOKEN);
 
   await rest.put(
     Routes.applicationCommands(client.user.id),
-    { body: buildCommands().map(command => command.toJSON()) }
+    {
+      body: commands
+    }
   );
 
-  console.log("✅ Slash commands registered.");
+  console.log(
+    `✅ Registered ${commands.length} slash commands.`
+  );
 }
 
 module.exports = {
   getHelpDeskConfig,
   getRankConfig,
   buildCommands,
-  registerCommands,
   registerCommandsWhenReady
 };
