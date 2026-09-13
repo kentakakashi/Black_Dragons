@@ -1,206 +1,202 @@
 const { Events } = require("discord.js");
 
-const {
-  handleHelpDeskButton,
-  handleHelpDeskModal
-} = require("../buttons/helpDesk");
-
-const {
-  handleRankButton,
-  handleRankModal,
-  handleDeclineModal
-} = require("../buttons/rank");
-
-const {
-  handleSetupButton
-} = require("../buttons/setup");
-
-const leaderboard = require("../commands/leaderboard");
-
 module.exports = function registerInteractionCreate(client) {
-  client.on(
-    Events.InteractionCreate,
-    async interaction => {
-      try {
-        /*
-        ==============================================
-        SLASH COMMANDS
-        ==============================================
-        */
+  client.on(Events.InteractionCreate, async (interaction) => {
+    try {
+      // ================================
+      // SLASH COMMANDS
+      // ================================
+      if (interaction.isChatInputCommand()) {
+        const command = client.commands.get(interaction.commandName);
 
-        if (interaction.isChatInputCommand()) {
-          const command = client.commands.get(
-            interaction.commandName
+        if (!command) {
+          console.error(
+            `❌ Command not found: /${interaction.commandName}`
           );
 
-          if (!command) {
-            console.error(
-              `❌ Command not found: /${interaction.commandName}`
-            );
-
-            if (!interaction.replied && !interaction.deferred) {
-              await interaction.reply({
-                content:
-                  "❌ This command is not loaded correctly. Please contact an administrator.",
-                ephemeral: true
-              });
-            }
-
-            return;
-          }
-
-          console.log(
-            `📌 Running /${interaction.commandName} for ${interaction.user.tag}`
-          );
-
-          await command.execute(interaction, {
-            client,
-            data: client.appData
+          await interaction.reply({
+            content: "❌ This command is not available.",
+            ephemeral: true
           });
 
           return;
         }
 
-        /*
-        ==============================================
-        BUTTONS
-        ==============================================
-        */
+        console.log(
+          `📌 Running /${interaction.commandName} for ${interaction.user.tag}`
+        );
 
-        if (interaction.isButton()) {
+        await command.execute(interaction, {
+          client,
+          data: client.appData
+        });
+
+        return;
+      }
+
+      // ================================
+      // BUTTONS
+      // ================================
+      if (interaction.isButton()) {
+        const customId = interaction.customId;
+
+        // Help Desk buttons
+        if (
+          customId.startsWith("helpdesk_") ||
+          customId === "war" ||
+          customId === "backup" ||
+          customId === "end_request"
+        ) {
+          const helpDesk = require("../buttons/helpDesk");
+
+          const handled = await helpDesk.handleHelpDeskButton(
+            interaction,
+            client.appData
+          );
+
+          if (handled) return;
+        }
+
+        // Rank buttons
+        if (customId.startsWith("rank_")) {
+          const rank = require("../buttons/rank");
+
+          const handled = await rank.handleRankButton(
+            interaction,
+            client.appData,
+            client
+          );
+
+          if (handled) return;
+        }
+
+        // Setup buttons
+        if (customId.startsWith("setup_")) {
+          const setup = require("../buttons/setup");
+
+          const handled = await setup.handleSetupButton(
+            interaction,
+            client.appData
+          );
+
+          if (handled) return;
+        }
+
+        // Leaderboard buttons
+        if (customId.startsWith("leaderboard_")) {
+          const leaderboard = require("../commands/leaderboard");
+
           if (
-            await handleHelpDeskButton(
-              interaction,
-              client.appData
-            )
+            typeof leaderboard.handleButton === "function"
           ) {
-            return;
-          }
-
-          if (
-            await handleRankButton(
-              interaction,
-              client.appData
-            )
-          ) {
-            return;
-          }
-
-          if (
-            await handleSetupButton(
-              interaction,
-              client.appData
-            )
-          ) {
-            return;
-          }
-
-          if (
-            await leaderboard.handleButton(
+            const handled = await leaderboard.handleButton(
               interaction,
               {
                 client,
                 data: client.appData
               }
-            )
-          ) {
-            return;
-          }
+            );
 
-          return;
+            if (handled) return;
+          }
         }
 
-        /*
-        ==============================================
-        SELECT MENUS
-        ==============================================
-        */
+        return;
+      }
 
-        if (
-          interaction.isChannelSelectMenu() ||
-          interaction.isRoleSelectMenu()
-        ) {
-          if (
-            await handleSetupButton(
-              interaction,
-              client.appData
-            )
-          ) {
-            return;
-          }
+      // ================================
+      // SELECT MENUS
+      // ================================
+      if (
+        interaction.isChannelSelectMenu() ||
+        interaction.isRoleSelectMenu() ||
+        interaction.isStringSelectMenu()
+      ) {
+        const setup = require("../buttons/setup");
 
-          return;
-        }
-
-        /*
-        ==============================================
-        MODALS
-        ==============================================
-        */
-
-        if (interaction.isModalSubmit()) {
-          if (
-            await handleHelpDeskModal(
-              interaction,
-              client.appData,
-              client
-            )
-          ) {
-            return;
-          }
-
-          if (
-            await handleRankModal(
-              interaction,
-              client.appData,
-              client
-            )
-          ) {
-            return;
-          }
-
-          if (
-            await handleDeclineModal(
-              interaction,
-              client.appData,
-              client
-            )
-          ) {
-            return;
-          }
-
-          return;
-        }
-      } catch (error) {
-        console.error(
-          "❌ Interaction handler failed:",
-          error
+        const handled = await setup.handleSetupButton(
+          interaction,
+          client.appData
         );
 
-        try {
-          if (
-            interaction.deferred ||
-            interaction.replied
-          ) {
-            await interaction.followUp({
-              content:
-                "❌ Something went wrong while processing that action. Check the bot console for the exact error.",
-              ephemeral: true
-            });
-          } else {
-            await interaction.reply({
-              content:
-                "❌ Something went wrong while processing that action. Check the bot console for the exact error.",
-              ephemeral: true
-            });
-          }
-        } catch (responseError) {
-          console.error(
-            "❌ Could not respond to failed interaction:",
-            responseError
+        if (handled) return;
+
+        return;
+      }
+
+      // ================================
+      // MODALS
+      // ================================
+      if (interaction.isModalSubmit()) {
+        const customId = interaction.customId;
+
+        // Help Desk modal
+        if (customId.startsWith("helpdesk_")) {
+          const helpDesk = require("../buttons/helpDesk");
+
+          const handled = await helpDesk.handleHelpDeskModal(
+            interaction,
+            client.appData,
+            client
           );
+
+          if (handled) return;
         }
+
+        // Rank modal
+        if (customId.startsWith("rank_")) {
+          const rank = require("../buttons/rank");
+
+          const handled = await rank.handleRankModal(
+            interaction,
+            client.appData,
+            client
+          );
+
+          if (handled) return;
+        }
+
+        // Decline modal
+        if (customId.startsWith("decline_")) {
+          const rank = require("../buttons/rank");
+
+          const handled = await rank.handleDeclineModal(
+            interaction,
+            client.appData,
+            client
+          );
+
+          if (handled) return;
+        }
+
+        return;
+      }
+    } catch (error) {
+      console.error(
+        "❌ Interaction handler error:",
+        error
+      );
+
+      try {
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp({
+            content:
+              "❌ Something went wrong while processing that action.",
+            ephemeral: true
+          });
+        } else {
+          await interaction.reply({
+            content:
+              "❌ Something went wrong while processing that action.",
+            ephemeral: true
+          });
+        }
+      } catch (responseError) {
+        console.error(
+          "❌ Could not send error response:",
+          responseError
+        );
       }
     }
-  );
+  });
 };
