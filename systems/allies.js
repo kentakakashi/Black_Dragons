@@ -603,7 +603,6 @@ function createHeaderEmbed(
             ? ""
             : "s"
         } currently recognized by **BLACK DRAGONS**.\n` +
-        "This message is automatically maintained by the Black Dragons bot.",
 
       inline:
         false
@@ -611,7 +610,7 @@ function createHeaderEmbed(
 
     .setFooter({
       text:
-        "BLACK DRAGONS • ALLIES • STRONGER TOGETHER"
+        "BLACK DRAGONS • ALLIES"
     })
 
     .setTimestamp();
