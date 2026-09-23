@@ -158,6 +158,47 @@ async function createRankUploadThread(
 
 /*
 ==================================================
+RETRY PROOF THREAD
+==================================================
+*/
+
+async function retryRankUploadThread(
+  application,
+  client,
+  data
+) {
+  if (!application) {
+    throw new Error("Application not found.");
+  }
+
+  if (application.status !== "pending_upload") {
+    throw new Error("Application is not waiting for proof upload.");
+  }
+
+  const user = await client.users.fetch(application.userId);
+
+  const interactionLike = {
+    user
+  };
+
+  const thread = await createRankUploadThread(
+    interactionLike,
+    application,
+    data,
+    client
+  );
+
+  application.threadId = thread.id;
+  application.lastActivityAt = Date.now();
+  application.updatedAt = Date.now();
+
+  await saveData(data);
+
+  return thread;
+}
+
+/*
+==================================================
 FORWARD APPLICATION TO REVIEW
 ==================================================
 */
@@ -900,6 +941,7 @@ async function processProofMessage(
 module.exports = {
   sendRankPanel,
   createRankUploadThread,
+  retryRankUploadThread,
   forwardRankApplication,
   applyRankRole,
   recordRankHistory,
