@@ -237,12 +237,19 @@ async function handleRankButton(
       return true;
     }
 
-    /*
-     * Persist a repaired pending_review state before accepting.
-     */
-    await saveData(data);
-
     try {
+      /*
+       * Acknowledge the button immediately. Firebase, member fetching,
+       * role changes, and history logging can take long enough to make
+       * interaction.update() expire.
+       */
+      await interaction.deferUpdate();
+
+      /*
+       * Persist a repaired pending_review state before accepting.
+       */
+      await saveData(data);
+
       const rank = getRank(application.kills);
 
       const member =
@@ -309,7 +316,7 @@ async function handleRankButton(
         client
       );
 
-      await interaction.update({
+      await interaction.editReply({
         content:
           "✅ **Application accepted.**",
 
@@ -345,15 +352,34 @@ async function handleRankButton(
       );
 
       if (
-        !interaction.replied &&
-        !interaction.deferred
+        error?.code === 10062 ||
+        error?.code === 10015
       ) {
-        await interaction.reply({
-          content:
-            "❌ Something went wrong while accepting the application.\n\n" +
-            "Check the Bot-Hosting console for the exact error.",
-          ephemeral: true
-        });
+        return true;
+      }
+
+      try {
+        if (interaction.deferred || interaction.replied) {
+          await interaction.editReply({
+            content:
+              "❌ Something went wrong while accepting the application.\n\n" +
+              "Check the Bot-Hosting console for the exact error.",
+            embeds: [],
+            components: []
+          });
+        } else {
+          await interaction.reply({
+            content:
+              "❌ Something went wrong while accepting the application.\n\n" +
+              "Check the Bot-Hosting console for the exact error.",
+            ephemeral: true
+          });
+        }
+      } catch (responseError) {
+        console.error(
+          "❌ Could not send rank acceptance error response:",
+          responseError
+        );
       }
     }
 
@@ -399,8 +425,10 @@ async function handleRankButton(
       return true;
     }
 
-    await saveData(data);
-
+    /*
+     * Do not delay showModal with Firebase I/O. The modal submission
+     * will persist the repaired application state safely.
+     */
     await interaction.showModal(
       createDeclineModal(applicationId)
     );
@@ -653,6 +681,12 @@ async function handleDeclineModal(
 
   touchApplication(application);
 
+  /*
+   * Acknowledge the modal immediately so database/history work
+   * cannot make the modal interaction expire.
+   */
+  await interaction.deferUpdate();
+
   await saveData(data);
 
   const rankSystem =
@@ -667,7 +701,7 @@ async function handleDeclineModal(
     client
   );
 
-  await interaction.update({
+  await interaction.editReply({
     content:
       "❌ **Application declined.**",
 
