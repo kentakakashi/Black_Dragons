@@ -209,6 +209,33 @@ function createButtons(
         )
       )
     );
+
+    const retryable = current.filter(
+      application =>
+        application.status === "pending_upload" &&
+        !application.threadId
+    );
+
+    if (retryable.length) {
+      rows.push(
+        new ActionRowBuilder().addComponents(
+          retryable.map(
+            application =>
+              new ButtonBuilder()
+                .setCustomId(
+                  `applications_retry:${application.id}`
+                )
+                .setLabel(
+                  `RETRY #${application.id}`
+                )
+                .setEmoji("🔄")
+                .setStyle(
+                  ButtonStyle.Primary
+                )
+          )
+        )
+      );
+    }
   }
 
   const navigation =
@@ -348,6 +375,107 @@ async function handleButton(
     {
       page: 0
     };
+
+  /*
+  ================================================
+  RETRY PROOF THREAD
+  ================================================
+  */
+
+  if (
+    interaction.customId.startsWith(
+      "applications_retry:"
+    )
+  ) {
+    const applicationId =
+      interaction.customId.split(":")[1];
+
+    const application =
+      context.data.rankApplications?.find(
+        app => app.id === applicationId
+      );
+
+    if (
+      !application ||
+      application.status !== "pending_upload" ||
+      application.threadId
+    ) {
+      await interaction.update({
+        embeds: [
+          createApplicationsEmbed(
+            getOpenApplications(context.data),
+            session.page
+          )
+        ],
+        components: createButtons(
+          getOpenApplications(context.data),
+          session.page
+        )
+      });
+
+      return true;
+    }
+
+    await interaction.deferUpdate();
+
+    try {
+      const thread =
+        await rankSystem.retryRankUploadThread(
+          application,
+          context.client,
+          context.data
+        );
+
+      const applications =
+        getOpenApplications(context.data);
+
+      session.page = Math.min(
+        session.page,
+        Math.max(
+          0,
+          Math.ceil(applications.length / PAGE_SIZE) - 1
+        )
+      );
+
+      saveSession(interaction, session);
+
+      await interaction.editReply({
+        embeds: [
+          createApplicationsEmbed(
+            applications,
+            session.page
+          )
+        ],
+        components: createButtons(
+          applications,
+          session.page
+        )
+      });
+
+      try {
+        await interaction.followUp({
+          content:
+            `✅ Proof thread recreated for **#${application.id}**: ${thread}`,
+          ephemeral: true
+        });
+      } catch {}
+
+    } catch (error) {
+      console.error(
+        "❌ Could not recreate rank proof thread:",
+        error
+      );
+
+      await interaction.editReply({
+        content:
+          `❌ Could not recreate the proof thread for **#${application.id}**. The application remains saved.`,
+        embeds: [],
+        components: []
+      });
+    }
+
+    return true;
+  }
 
   /*
   ================================================
