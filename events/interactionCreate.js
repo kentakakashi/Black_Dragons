@@ -198,6 +198,9 @@ module.exports =
                 'applications_close:'
               ) ||
               customId.startsWith(
+                'applications_retry:'
+              ) ||
+              customId.startsWith(
                 'applications:'
               )
             ) {
@@ -435,6 +438,22 @@ module.exports =
             error
           );
 
+          /*
+           * Discord can report 10062/10015 when an interaction
+           * has already expired or its webhook is gone. Do not
+           * attempt a second response in that case.
+           */
+          if (
+            error?.code === 10062 ||
+            error?.code === 10015
+          ) {
+            console.warn(
+              `⚠️ Interaction expired before an error response could be sent (code ${error.code}).`
+            );
+
+            return;
+          }
+
           try {
             if (
               interaction.replied ||
@@ -455,6 +474,13 @@ module.exports =
           } catch (
             responseError
           ) {
+            if (
+              responseError?.code === 10062 ||
+              responseError?.code === 10015
+            ) {
+              return;
+            }
+
             console.error(
               '❌ Could not send error response:',
               responseError
