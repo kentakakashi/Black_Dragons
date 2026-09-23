@@ -186,6 +186,52 @@ module.exports =
         console.log(
           "🧹 Automatic application cleanup is active. Inactivity limit: 1 hour."
         );
+        /*
+        ==========================================
+        DAILY HELP DESK RESET WATCHER
+        ==========================================
+
+        The reset must happen when the date changes in
+        Asia/Kolkata, not only when the bot restarts.
+        */
+        let lastHelpDeskDate = client.appData.date;
+
+        const dailyResetTimer = setInterval(
+          async () => {
+            try {
+              const changed = checkDailyReset(
+                client.appData
+              );
+
+              if (
+                changed ||
+                client.appData.date !== lastHelpDeskDate
+              ) {
+                lastHelpDeskDate = client.appData.date;
+
+                await setupDashboard(
+                  client,
+                  client.appData
+                );
+
+                console.log(
+                  `🌅 Help Desk daily reset detected. Dashboard refreshed for ${client.appData.date}.`
+                );
+              }
+            } catch (error) {
+              console.error(
+                "❌ Automatic daily Help Desk reset failed:",
+                error
+              );
+            }
+          },
+          30 * 1000
+        );
+
+        if (dailyResetTimer.unref) {
+          dailyResetTimer.unref();
+        }
+
       }
     );
   };
