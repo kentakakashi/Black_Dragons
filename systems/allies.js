@@ -68,6 +68,7 @@ function localLoad() {
   return {
     channelId: null,
     messageId: null,
+    headerImageUrl: null,
     clans: clone(DEFAULT_CLANS)
   };
 }
@@ -359,7 +360,7 @@ function embedBuilderFromData(data) {
 }
 
 function createHeaderEmbed(clans) {
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor(0x7c3aed)
     .setAuthor({
       name: 'BLACK DRAGONS • ALLIES'
@@ -382,6 +383,14 @@ function createHeaderEmbed(clans) {
       text: 'BLACK DRAGONS • ALLIES'
     })
     .setTimestamp();
+
+  const headerImageUrl = getState().headerImageUrl;
+
+  if (headerImageUrl && validUrl(headerImageUrl)) {
+    embed.setImage(headerImageUrl);
+  }
+
+  return embed;
 }
 
 function buildMessagePayload() {
@@ -474,6 +483,11 @@ async function initialize() {
       local.messageId ||
       null,
 
+    headerImageUrl:
+      cloud.headerImageUrl ||
+      local.headerImageUrl ||
+      null,
+
     clans: mergeClans(
       local.clans || [],
       cloud.clans || []
@@ -540,6 +554,7 @@ async function save() {
       {
         channelId: state.channelId || null,
         messageId: state.messageId || null,
+        headerImageUrl: state.headerImageUrl || null,
         clans: state.clans,
         updatedAt: now()
       },
@@ -684,6 +699,13 @@ async function setup(client, channelId) {
 async function addClan(client, input) {
   await initialize();
 
+  if (input.headerImageUrl !== undefined) {
+    state.headerImageUrl =
+      input.headerImageUrl && validUrl(input.headerImageUrl)
+        ? String(input.headerImageUrl).trim()
+        : null;
+  }
+
   if (state.clans.length >= MAX_CLANS) {
     return {
       ok: false,
@@ -765,6 +787,13 @@ async function addClan(client, input) {
 
 async function updateClan(client, query, changes) {
   await initialize();
+
+  if (changes.headerImageUrl !== undefined) {
+    state.headerImageUrl =
+      changes.headerImageUrl && validUrl(changes.headerImageUrl)
+        ? String(changes.headerImageUrl).trim()
+        : null;
+  }
 
   const clan = findClan(query);
 
