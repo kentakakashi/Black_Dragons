@@ -511,6 +511,10 @@ async function handleRankModal(
       robloxUsername
     );
 
+  // Acknowledge immediately so Discord does not expire the modal interaction
+  // while Firebase/Discord thread creation is still running.
+  await interaction.deferReply({ ephemeral: true });
+
   if (
     !Array.isArray(
       data.rankApplications
@@ -544,12 +548,11 @@ async function handleRankModal(
 
     await saveData(data);
 
-    await interaction.reply({
+    await interaction.editReply({
       content:
         `✅ **Application #${application.id} created.**\n\n` +
         `📁 ${thread}\n\n` +
-        "Please open the thread and upload your leaderboard screenshot there.",
-      ephemeral: true
+        "Please open the thread and upload your leaderboard screenshot there."
     });
   } catch (error) {
     console.error(
@@ -557,18 +560,19 @@ async function handleRankModal(
       error
     );
 
+    // Keep the application recoverable. A temporary Discord/API failure
+    // must never erase a legitimate application.
     application.status =
-      "cancelled";
+      "pending_upload";
 
     touchApplication(application);
 
     await saveData(data);
 
-    await interaction.reply({
+    await interaction.editReply({
       content:
         "❌ I could not create the proof-upload thread.\n\n" +
-        "Please contact an administrator.",
-      ephemeral: true
+        `Your application **#${application.id}** was saved and remains recoverable. An administrator can retry the proof thread from **/applications**.`
     });
   }
 
