@@ -416,8 +416,19 @@ async function showMedia(i, s) {
     row(
       input(
         'banner',
-        'Top card image URL',
+        'Clan top card image URL',
         s.meta.bannerUrl || '',
+        TextInputStyle.Short,
+        false,
+        1000
+      )
+    ),
+
+    row(
+      input(
+        'header',
+        'HEADER embed image URL',
+        s.meta.headerImageUrl || '',
         TextInputStyle.Short,
         false,
         1000
@@ -793,6 +804,13 @@ function validateDraft(s) {
   }
 
   if (
+    s.meta.headerImageUrl &&
+    !validUrl(s.meta.headerImageUrl)
+  ) {
+    return 'Header image URL must start with http:// or https://.';
+  }
+
+  if (
     d.author?.name &&
     d.author.name.length > 256
   ) {
@@ -819,7 +837,9 @@ async function openAdd(i) {
     leaderIds: [],
     invite: null,
     bannerUrl: null,
-    bannerFile: null
+    bannerFile: null,
+    headerImageUrl:
+      allies.getState().headerImageUrl || null
   };
 
   const draft = allies.normalizeEmbed(
@@ -1055,6 +1075,8 @@ async function handleButton(i) {
                 s.meta.bannerUrl,
               bannerFile:
                 s.meta.bannerFile,
+              headerImageUrl:
+                s.meta.headerImageUrl,
               embed: s.draft
             }
           );
@@ -1075,6 +1097,8 @@ async function handleButton(i) {
                 s.meta.bannerUrl,
               bannerFile:
                 s.meta.bannerFile,
+              headerImageUrl:
+                s.meta.headerImageUrl,
               embed: s.draft
             }
           );
@@ -1692,7 +1716,6 @@ async function handleModal(i) {
     );
 
     if (
-      !validUrl(banner) ||
       !validUrl(image) ||
       !validUrl(thumbnail)
     ) {
@@ -1705,8 +1728,30 @@ async function handleModal(i) {
       return true;
     }
 
+    const header = clean(
+      i.fields.getTextInputValue(
+        'header'
+      )
+    );
+
+    if (
+      !validUrl(banner) ||
+      !validUrl(header)
+    ) {
+      await i.reply({
+        content:
+          '❌ Image URLs must start with http:// or https://.',
+        ephemeral: true
+      });
+
+      return true;
+    }
+
     s.meta.bannerUrl =
       banner || null;
+
+    s.meta.headerImageUrl =
+      header || null;
 
     if (banner) {
       s.meta.bannerFile = null;
