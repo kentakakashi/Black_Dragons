@@ -142,15 +142,23 @@ async function createRankUploadThread(
     Date.now();
 
   await thread.send(
-    `🏆 **Black Dragons Rank Proof Upload**\n\n` +
-    `Application: **#${application.id}**\n` +
-    `Roblox: **${application.robloxUsername}**\n` +
-    `Kills: **${formatKills(application.kills)}**\n` +
-    `Calculated Rank: ${getRankDisplay(
+    `# 🚨 ACTION REQUIRED — UPLOAD YOUR PROOF HERE\n\n` +
+    `## 📸 **SEND YOUR LEADERBOARD SCREENSHOT IN THIS THREAD**\n\n` +
+    `**DO NOT REPLY WITH TEXT.**\n` +
+    `**UPLOAD THE SCREENSHOT AS AN IMAGE ATTACHMENT BELOW.**\n\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `**Application:** #${application.id}\n` +
+    `**Roblox:** ${application.robloxUsername}\n` +
+    `**Kills:** ${formatKills(application.kills)}\n` +
+    `**Calculated Rank:** ${getRankDisplay(
       getRank(application.kills)
-    )}\n\n` +
-    `Please upload your leaderboard screenshot as an image attachment in this thread.\n\n` +
-    `⏱️ This application closes automatically after **1 hour of inactivity**.`
+    )}\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+    `✅ **STEP 1:** Take/open your leaderboard screenshot.\n` +
+    `✅ **STEP 2:** Tap **+ / Attach** below.\n` +
+    `✅ **STEP 3:** SEND THE IMAGE IN THIS THREAD.\n\n` +
+    `⚠️ **YOUR APPLICATION CANNOT BE REVIEWED UNTIL THE SCREENSHOT IS SENT.**\n` +
+    `⏱️ No activity for **1 hour** automatically closes this application.`
   );
 
   return thread;
