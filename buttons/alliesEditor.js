@@ -1335,7 +1335,9 @@ async function handleSelect(i) {
         bannerUrl:
           clan.bannerUrl || null,
         bannerFile:
-          clan.bannerFile || null
+          clan.bannerFile || null,
+        headerImageUrl:
+          allies.getState().headerImageUrl || null
       },
 
       draft: clone(
