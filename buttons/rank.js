@@ -357,6 +357,31 @@ async function handleRankButton(
       ) {
         return true;
       }
+      if (error?.code === "RANK_ROLE_ERROR") {
+        try {
+          await interaction.editReply({
+            content:
+              "❌ **Rank role update failed.**\\n\\n" +
+              error.message +
+              "\\n\\n**The application is still waiting for review. Fix the role setup/hierarchy and press ACCEPT again.**",
+            embeds: [
+              createRankReviewEmbed(application)
+            ],
+            components: [
+              require("../embeds/rank").createRankReviewButtons(
+                application.id
+              )
+            ]
+          });
+        } catch (responseError) {
+          console.error(
+            "❌ Could not report rank role failure:",
+            responseError
+          );
+        }
+
+        return true;
+      }
 
       try {
         if (interaction.deferred || interaction.replied) {
