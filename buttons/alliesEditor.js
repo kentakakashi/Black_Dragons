@@ -59,6 +59,7 @@ function sectionMenu(s) {
     .setPlaceholder("Choose what you want to edit...")
     .addOptions(
       { label: "Clan Information", description: "Name, leaders, invite", value: "identity", emoji: "🏷️" },
+      { label: "Global Allies Intro", description: "Describe Black Dragons and the alliance at the top", value: "global", emoji: "🌐" },
       { label: "Basic Embed", description: "Title, URL, description", value: "basic", emoji: "📝" },
       { label: "Appearance", description: "Embed color", value: "style", emoji: "🎨" },
       { label: "Images", description: "Banner, header, image, thumbnail", value: "media", emoji: "🖼️" },
@@ -84,7 +85,7 @@ function editorEmbed(s) {
       "🎨 **Color:** #" + c.toString(16).padStart(6, "0").toUpperCase() + "\n" +
       "🖼️ **Embed image:** " + (d.image?.url ? "Set" : "Not set") + "\n" +
       "🔳 **Thumbnail:** " + (d.thumbnail?.url ? "Set" : "Not set") + "\n" +
-      "🌐 **Global header image:** " + (m.headerImageUrl ? "Set" : "Not set") + "\n\n" +
+      "🌐 **Global header image:** " + (m.headerImageUrl ? "Set" : "Not set") + "\n📝 **Global intro:** " + (m.headerDescription ? "Set" : "Default") + "\n\n" +
       "**Choose a section below. Nothing is saved until SAVE is pressed.**"
     )
     .addFields(
@@ -119,6 +120,11 @@ async function showSection(i, s, type) {
       row(input("name", "Clan / server name", m.name, TextInputStyle.Short, true, 100)),
       row(input("leaders", "Leader IDs or @mentions", (m.leaderIds || []).map(id => "<@" + id + ">").join(" "), TextInputStyle.Short, true, 1000)),
       row(input("invite", "Discord invite / code", m.invite || "", TextInputStyle.Short, false, 1000))
+    );
+  } else if (type === "global") {
+    x = makeModal("aem:global:" + s.id, "🌐 Global Allies Intro");
+    x.addComponents(
+      row(input("description", "Top description / CLEAR", m.headerDescription || "", TextInputStyle.Paragraph, false, 4000))
     );
   } else if (type === "basic") {
     x = makeModal("aem:basic:" + s.id, "📝 Basic Embed");
@@ -232,7 +238,7 @@ async function openAdd(i) {
   const state = allies.getState();
   const s = {
     id: token(), ownerId: i.user.id, mode: "add",
-    meta: { name: "", leaderIds: [], invite: null, bannerUrl: null, bannerFile: null, headerImageUrl: state.headerImageUrl || null },
+    meta: { name: "", leaderIds: [], invite: null, bannerUrl: null, bannerFile: null, headerImageUrl: state.headerImageUrl || null, headerDescription: state.headerDescription || null },
     draft: allies.normalizeEmbed(null, { name: "NEW ALLY", leaderIds: [], invite: null }, state.clans.length),
     selectedField: null
   };
@@ -291,7 +297,7 @@ async function handleButton(i) {
       const payload = {
         name: s.meta.name, leaders: s.meta.leaderIds.join(" "), invite: s.meta.invite,
         bannerUrl: s.meta.bannerUrl, bannerFile: s.meta.bannerFile,
-        headerImageUrl: s.meta.headerImageUrl, embed: s.draft
+        headerImageUrl: s.meta.headerImageUrl, headerDescription: s.meta.headerDescription, embed: s.draft
       };
       const result = s.mode === "add"
         ? await allies.addClan(i.client, payload)
@@ -394,7 +400,7 @@ async function handleSelect(i) {
       meta: {
         id: clan.id, name: clan.name, leaderIds: clan.leaderIds || [], invite: clan.invite || null,
         bannerUrl: clan.bannerUrl || null, bannerFile: clan.bannerFile || null,
-        headerImageUrl: state.headerImageUrl || null
+        headerImageUrl: state.headerImageUrl || null, headerDescription: state.headerDescription || null
       },
       draft: clone(clan.embed || allies.normalizeEmbed(null, clan, state.clans.indexOf(clan))),
       selectedField: null
@@ -519,6 +525,11 @@ async function handleModal(i) {
       return true;
     }
     s.draft.color = c;
+  }
+
+  if (type === "global") {
+    const value = clean(i.fields.getTextInputValue("description"));
+    s.meta.headerDescription = /^clear$/i.test(value) || !value ? null : value;
   }
 
   if (type === "media") {
