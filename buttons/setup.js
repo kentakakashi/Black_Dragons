@@ -119,7 +119,10 @@ function controlsForStep(
     STEPS[stepIndex];
 
   const select =
-    step.key.endsWith("_role")
+    (
+      step.key.endsWith("_role") ||
+      step.key.startsWith("rank_role_")
+    )
       ? new RoleSelectMenuBuilder()
           .setCustomId(
             `setup_select:${step.key}`
