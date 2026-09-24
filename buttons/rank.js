@@ -361,9 +361,9 @@ async function handleRankButton(
         try {
           await interaction.editReply({
             content:
-              "❌ **Rank role update failed.**\\n\\n" +
+              "❌ **Rank role update failed.**\n\n" +
               error.message +
-              "\\n\\n**The application is still waiting for review. Fix the role setup/hierarchy and press ACCEPT again.**",
+              "\n\n**The application is still waiting for review. Fix the role setup/hierarchy and press ACCEPT again.**",
             embeds: [
               createRankReviewEmbed(application)
             ],
