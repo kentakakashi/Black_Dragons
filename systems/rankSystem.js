@@ -1,5 +1,6 @@
 const {
-  ChannelType
+  ChannelType,
+  PermissionFlagsBits
 } = require("discord.js");
 
 const {
@@ -383,71 +384,178 @@ RANK ROLE
 ==================================================
 */
 
+
 async function applyRankRole(
   member,
   rankKey,
   data
 ) {
-  const roleId =
-    data.config.rank
-      .rankRoleIds?.[rankKey] ||
-    data.rankConfig
-      .rankRoleIds?.[rankKey];
+  const guild = member?.guild;
 
-  if (!roleId) {
-    return;
+  if (!guild) {
+    const error = new Error(
+      "The applicant Discord server could not be resolved."
+    );
+    error.code = "RANK_ROLE_ERROR";
+    throw error;
   }
 
-  const allRankRoleIds =
-    Object.values(
-      data.config.rank
-        .rankRoleIds ||
-        data.rankConfig
-          .rankRoleIds ||
-        {}
-    ).filter(Boolean);
+  const config = getRankConfig(data);
+  const rankRoleIds = config.rankRoleIds || {};
+  const roleId = rankRoleIds[rankKey];
 
-  for (
-    const oldRoleId
-    of allRankRoleIds
-  ) {
-    if (
-      oldRoleId !== roleId &&
-      member.roles.cache.has(
-        oldRoleId
-      )
-    ) {
-      try {
-        await member.roles.remove(
-          oldRoleId,
-          "Black Dragons rank update"
-        );
-      } catch (error) {
-        console.error(
-          "❌ Could not remove old rank role:",
-          error
-        );
-      }
-    }
+  if (!roleId) {
+    const error = new Error(
+      "The **" + rankKey + "** rank role is not configured. Run **/setup** and configure the " + rankKey + " rank role."
+    );
+    error.code = "RANK_ROLE_ERROR";
+    throw error;
+  }
+
+  const botMember =
+    guild.members.me ||
+    await guild.members.fetchMe();
+
+  if (!botMember) {
+    const error = new Error(
+      "I could not resolve my own server member record."
+    );
+    error.code = "RANK_ROLE_ERROR";
+    throw error;
+  }
+
+  if (!botMember.permissions.has(PermissionFlagsBits.ManageRoles)) {
+    const error = new Error(
+      "I need the **Manage Roles** permission to assign rank roles."
+    );
+    error.code = "RANK_ROLE_ERROR";
+    throw error;
+  }
+
+  const roles = await guild.roles.fetch();
+  const targetRole = roles.get(String(roleId));
+
+  if (!targetRole) {
+    const error = new Error(
+      "The configured **" + rankKey + "** rank role no longer exists in this server."
+    );
+    error.code = "RANK_ROLE_ERROR";
+    throw error;
+  }
+
+  if (targetRole.managed) {
+    const error = new Error(
+      "The configured **" + rankKey + "** role is a managed/integration role and cannot be assigned by the bot."
+    );
+    error.code = "RANK_ROLE_ERROR";
+    throw error;
   }
 
   if (
-    !member.roles.cache.has(
-      roleId
-    )
+    !targetRole.editable ||
+    botMember.roles.highest.comparePositionTo(targetRole) <= 0
   ) {
-    try {
-      await member.roles.add(
-        roleId,
-        "Black Dragons rank accepted"
+    const error = new Error(
+      "My highest role must be **above** the **" + rankKey + "** rank role in Server Settings → Roles."
+    );
+    error.code = "RANK_ROLE_ERROR";
+    throw error;
+  }
+
+  const currentMember = await member.fetch(true);
+
+  const allRankRoleIds = [
+    ...new Set(
+      Object.values(rankRoleIds)
+        .filter(Boolean)
+        .map(String)
+    )
+  ];
+
+  for (const oldRoleId of allRankRoleIds) {
+    if (
+      oldRoleId === String(roleId) ||
+      !currentMember.roles.cache.has(oldRoleId)
+    ) {
+      continue;
+    }
+
+    const oldRole = roles.get(oldRoleId);
+
+    if (!oldRole) {
+      continue;
+    }
+
+    if (oldRole.managed) {
+      const error = new Error(
+        "The member has a managed role configured as a rank role (**" + oldRole.name + "**), so I cannot remove it."
       );
-    } catch (error) {
-      console.error(
-        "❌ Could not add rank role:",
-        error
+      error.code = "RANK_ROLE_ERROR";
+      throw error;
+    }
+
+    if (
+      !oldRole.editable ||
+      botMember.roles.highest.comparePositionTo(oldRole) <= 0
+    ) {
+      const error = new Error(
+        "My highest role must be **above** the old rank role **" + oldRole.name + "** before I can remove it."
       );
+      error.code = "RANK_ROLE_ERROR";
+      throw error;
     }
   }
+
+  // Add the new role first. If this fails, the old rank remains untouched.
+  if (!currentMember.roles.cache.has(String(roleId))) {
+    await currentMember.roles.add(
+      targetRole,
+      "Black Dragons rank accepted"
+    );
+  }
+
+  // Now remove every other configured rank role.
+  for (const oldRoleId of allRankRoleIds) {
+    if (
+      oldRoleId === String(roleId) ||
+      !currentMember.roles.cache.has(oldRoleId)
+    ) {
+      continue;
+    }
+
+    await currentMember.roles.remove(
+      oldRoleId,
+      "Black Dragons rank update"
+    );
+  }
+
+  const verifiedMember = await currentMember.fetch(true);
+
+  if (!verifiedMember.roles.cache.has(String(roleId))) {
+    const error = new Error(
+      "Discord did not keep the new **" + rankKey + "** rank role on the member."
+    );
+    error.code = "RANK_ROLE_ERROR";
+    throw error;
+  }
+
+  for (const oldRoleId of allRankRoleIds) {
+    if (
+      oldRoleId !== String(roleId) &&
+      verifiedMember.roles.cache.has(oldRoleId)
+    ) {
+      const oldRole = roles.get(oldRoleId);
+      const error = new Error(
+        "The old rank role" +
+        (oldRole ? " **" + oldRole.name + "**" : "") +
+        " is still assigned after the update."
+      );
+      error.code = "RANK_ROLE_ERROR";
+      throw error;
+    }
+  }
+
+  return verifiedMember;
 }
 
 /*
