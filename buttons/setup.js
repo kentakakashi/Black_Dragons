@@ -1,1 +1,2 @@
-module.exports={startSetup:async()=>{},handleSetupButton:async()=>false,handleSetupSelect:async()=>false};
+const panel = require("../systems/setupPanel");
+module.exports = panel;
