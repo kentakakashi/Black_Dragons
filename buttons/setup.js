@@ -91,9 +91,19 @@ function currentValue(
       r.leaderboardChannelId
   };
 
+  if (stepKeyStartsWithRankRole(stepKey)) {
+    const rankKey = stepKey.replace("rank_role_", "");
+    return r.rankRoleIds?.[rankKey] || null;
+  }
+
   return (
     map[stepKey] || null
   );
+}
+
+function stepKeyStartsWithRankRole(stepKey) {
+  return typeof stepKey === "string" &&
+    stepKey.startsWith("rank_role_");
 }
 
 /*
@@ -485,6 +495,12 @@ function applySelection(
     key === "leaderboard_channel"
   ) {
     data.config.rank.leaderboardChannelId =
+      value;
+  } else if (stepKeyStartsWithRankRole(key)) {
+    const rankKey =
+      key.replace("rank_role_", "");
+
+    data.config.rank.rankRoleIds[rankKey] =
       value;
   }
 
