@@ -369,9 +369,9 @@ function createHeaderEmbed(clans) {
     .setTitle('🤝 BLACK DRAGONS ALLIES')
     .setDescription(
       getState().headerDescription ||
-      '**ALLIES • DIFFERENT CLANS • ONE ALLIANCE**\\n\\n' +
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
-      'Our trusted allied clans are displayed below.\\n' +
+      '**ALLIES • DIFFERENT CLANS • ONE ALLIANCE**\n\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━\n' +
+      'Our trusted allied clans are displayed below.\n' +
       '━━━━━━━━━━━━━━━━━━━━━━━━━━'
     )
     .addFields({
