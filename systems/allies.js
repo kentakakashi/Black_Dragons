@@ -69,6 +69,7 @@ function localLoad() {
     channelId: null,
     messageId: null,
     headerImageUrl: null,
+    headerDescription: null,
     clans: clone(DEFAULT_CLANS)
   };
 }
@@ -367,9 +368,10 @@ function createHeaderEmbed(clans) {
     })
     .setTitle('🤝 BLACK DRAGONS ALLIES')
     .setDescription(
-      '**ALLIES • DIFFERENT CLANS • ONE ALLIANCE**\n\n' +
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━\n' +
-      'Our trusted allied clans are displayed below.\n' +
+      getState().headerDescription ||
+      '**ALLIES • DIFFERENT CLANS • ONE ALLIANCE**\\n\\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+      'Our trusted allied clans are displayed below.\\n' +
       '━━━━━━━━━━━━━━━━━━━━━━━━━━'
     )
     .addFields({
@@ -488,6 +490,11 @@ async function initialize() {
       local.headerImageUrl ||
       null,
 
+    headerDescription:
+      cloud.headerDescription ??
+      local.headerDescription ??
+      null,
+
     clans: mergeClans(
       local.clans || [],
       cloud.clans || []
@@ -555,6 +562,7 @@ async function save() {
         channelId: state.channelId || null,
         messageId: state.messageId || null,
         headerImageUrl: state.headerImageUrl || null,
+        headerDescription: state.headerDescription || null,
         clans: state.clans,
         updatedAt: now()
       },
@@ -699,6 +707,12 @@ async function setup(client, channelId) {
 async function addClan(client, input) {
   await initialize();
 
+  if (input.headerDescription !== undefined) {
+    state.headerDescription = input.headerDescription
+      ? String(input.headerDescription).trim()
+      : null;
+  }
+
   if (input.headerImageUrl !== undefined) {
     state.headerImageUrl =
       input.headerImageUrl && validUrl(input.headerImageUrl)
@@ -787,6 +801,12 @@ async function addClan(client, input) {
 
 async function updateClan(client, query, changes) {
   await initialize();
+
+  if (changes.headerDescription !== undefined) {
+    state.headerDescription = changes.headerDescription
+      ? String(changes.headerDescription).trim()
+      : null;
+  }
 
   if (changes.headerImageUrl !== undefined) {
     state.headerImageUrl =
