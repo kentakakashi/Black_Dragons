@@ -25,6 +25,9 @@ const allies =
 
 const logging = require("../systems/logging/logger");
 
+const blacklistPublisher =
+  require("../systems/blacklistPublisher");
+
 module.exports =
   function registerReady(
     client
@@ -144,6 +147,21 @@ module.exports =
         } catch (error) {
           console.error(
             "❌ Could not restore Allies message:",
+            error
+          );
+        }
+
+        /*
+        ==========================================
+        PUBLIC BLACKLIST
+        ==========================================
+        */
+
+        try {
+          await blacklistPublisher.restore(client);
+        } catch (error) {
+          console.error(
+            "❌ Could not restore public blacklist embeds:",
             error
           );
         }
