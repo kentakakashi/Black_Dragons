@@ -307,7 +307,7 @@ async function showSection(i, s, type) {
     x.addComponents(
       row(input("title", "Title", d.title, TextInputStyle.Short, false, 256)),
       row(input("url", "Title URL", d.url, TextInputStyle.Short, false, 1000)),
-      row(input("description", "Description", d.description, TextInputStyle.Paragraph, false, 4096))
+      row(input("description", "Description", d.description, TextInputStyle.Paragraph, false, 4000))
     );
   } else if (type === "style") {
     x = makeModal("aem:style:" + s.id, "🎨 Embed Color");
