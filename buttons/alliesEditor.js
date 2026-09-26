@@ -113,6 +113,12 @@ function headControls(s) {
   return [
     row(headSectionMenu(s)),
     row(
+      new ButtonBuilder().setCustomId("aeh:clearimage:" + s.id).setLabel("CLEAR IMAGE").setStyle(ButtonStyle.Secondary).setDisabled(!s.draft.image?.url),
+      new ButtonBuilder().setCustomId("aeh:clearthumbnail:" + s.id).setLabel("CLEAR THUMBNAIL").setStyle(ButtonStyle.Secondary).setDisabled(!s.draft.thumbnail?.url),
+      new ButtonBuilder().setCustomId("aeh:clearauthor:" + s.id).setLabel("CLEAR AUTHOR").setStyle(ButtonStyle.Secondary).setDisabled(!s.draft.author?.name),
+      new ButtonBuilder().setCustomId("aeh:clearfooter:" + s.id).setLabel("CLEAR FOOTER").setStyle(ButtonStyle.Secondary).setDisabled(!s.draft.footer?.text)
+    ),
+    row(
       new ButtonBuilder().setCustomId("aeh:save:" + s.id).setLabel("SAVE").setEmoji("💾").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId("aeh:cancel:" + s.id).setLabel("CANCEL").setEmoji("✖️").setStyle(ButtonStyle.Danger)
     )
@@ -183,9 +189,9 @@ async function showHeadSection(i, s, type) {
   if (type === "basic") {
     x = makeModal("aehm:basic:" + s.id, "📝 Head Embed Basic");
     x.addComponents(
-      row(input("title", "Title", d.title, TextInputStyle.Short, false, 256)),
-      row(input("url", "Title URL", d.url, TextInputStyle.Short, false, 1000)),
-      row(input("description", "Description", d.description, TextInputStyle.Paragraph, false, 4096))
+      row(input("title", "Title / CLEAR", d.title, TextInputStyle.Short, false, 256)),
+      row(input("url", "Title URL / CLEAR", d.url, TextInputStyle.Short, false, 1000)),
+      row(input("description", "Description / CLEAR", d.description, TextInputStyle.Paragraph, false, 4000))
     );
   } else if (type === "style") {
     x = makeModal("aehm:style:" + s.id, "🎨 Head Embed Color");
@@ -605,6 +611,30 @@ async function handleHeadButton(i) {
     return true;
   }
 
+  if (action === "clearimage") {
+    s.draft.image = null;
+    await renderHead(i, s);
+    return true;
+  }
+
+  if (action === "clearthumbnail") {
+    s.draft.thumbnail = null;
+    await renderHead(i, s);
+    return true;
+  }
+
+  if (action === "clearauthor") {
+    s.draft.author = null;
+    await renderHead(i, s);
+    return true;
+  }
+
+  if (action === "clearfooter") {
+    s.draft.footer = null;
+    await renderHead(i, s);
+    return true;
+  }
+
   if (action === "addfield") {
     if (s.draft.fields.length >= 25) {
       await i.reply({ content: "❌ You already have 25 fields.", ephemeral: true });
@@ -794,9 +824,12 @@ async function handleModal(i) {
     }
 
     if (type === "basic") {
-      s.draft.title = clean(i.fields.getTextInputValue("title"));
-      s.draft.url = clean(i.fields.getTextInputValue("url")) || null;
-      s.draft.description = clean(i.fields.getTextInputValue("description"));
+      const title = clean(i.fields.getTextInputValue("title"));
+      const url = clean(i.fields.getTextInputValue("url"));
+      const description = clean(i.fields.getTextInputValue("description"));
+      s.draft.title = /^clear$/i.test(title) ? "" : title;
+      s.draft.url = /^clear$/i.test(url) || !url ? null : url;
+      s.draft.description = /^clear$/i.test(description) ? "" : description;
     }
 
     if (type === "style") {
