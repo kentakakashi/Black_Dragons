@@ -786,12 +786,34 @@ async function handleSelect(i) {
         return true;
       }
       saveSession(s);
-      const type = i.values[0];
-      if (type === "fields") {
-        await showHeadFields(i, s);
+
+      if (p[1] === "fieldpick") {
+        if (i.values[0] === "none") {
+          s.selectedField = null;
+          await showHeadFields(i, s);
+          return true;
+        }
+
+        const index = Number(i.values[0]);
+        if (!Number.isInteger(index) || !s.draft.fields?.[index]) {
+          await i.reply({ content: "❌ That field no longer exists.", ephemeral: true });
+          return true;
+        }
+
+        s.selectedField = index;
+        await headFieldModal(i, s, index);
         return true;
       }
-      await showHeadSection(i, s, type);
+
+      if (p[1] === "section") {
+        const type = i.values[0];
+        if (type === "fields") {
+          await showHeadFields(i, s);
+          return true;
+        }
+        await showHeadSection(i, s, type);
+      }
+
       return true;
     }
 
