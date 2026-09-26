@@ -116,23 +116,6 @@ function buildCommands() {
       ),
 
     new SlashCommandBuilder()
-      .setName('logs')
-      .setDescription('Configure Black Dragons categorized audit logs.')
-      .setDefaultMemberPermissions(
-        PermissionFlagsBits.Administrator.toString()
-      )
-      .addSubcommand(sub =>
-        sub
-          .setName('setup')
-          .setDescription('Create or repair all categorized log channels.')
-      )
-      .addSubcommand(sub =>
-        sub
-          .setName('status')
-          .setDescription('Show the current categorized logging configuration.')
-      ),
-
-    new SlashCommandBuilder()
       .setName('purge')
       .setDescription('Delete messages and archive every deleted message in the message logs.')
       .setDefaultMemberPermissions(
