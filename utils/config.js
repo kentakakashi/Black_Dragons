@@ -200,6 +200,40 @@ function buildCommands() {
       ),
 
     new SlashCommandBuilder()
+      .setName('kills')
+      .setDescription(
+        'Administrator kill-stat management.'
+      )
+      .setDefaultMemberPermissions(
+        PermissionFlagsBits.Administrator.toString()
+      )
+      .addUserOption(option =>
+        option
+          .setName('member')
+          .setDescription('Ranked Discord member.')
+          .setRequired(true)
+      )
+      .addStringOption(option =>
+        option
+          .setName('action')
+          .setDescription('Add, remove or set the kill total.')
+          .setRequired(true)
+          .addChoices(
+            { name: 'Add', value: 'add' },
+            { name: 'Remove', value: 'remove' },
+            { name: 'Update', value: 'update' }
+          )
+      )
+      .addIntegerOption(option =>
+        option
+          .setName('amount')
+          .setDescription('Kills to add/remove, or the new total.')
+          .setMinValue(0)
+          .setMaxValue(1000000000)
+          .setRequired(true)
+      ),
+
+    new SlashCommandBuilder()
       .setName('rank-view')
       .setDescription(
         'View an approved Black Dragons rank.'
