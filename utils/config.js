@@ -116,6 +116,75 @@ function buildCommands() {
       ),
 
     new SlashCommandBuilder()
+      .setName('blacklist')
+      .setDescription('Manage the Black Dragons player and clan blacklist.')
+      .setDefaultMemberPermissions(
+        PermissionFlagsBits.Administrator.toString()
+      )
+      .addStringOption(option =>
+        option
+          .setName('type')
+          .setDescription('Player or clan.')
+          .setRequired(false)
+          .addChoices(
+            { name: 'Player', value: 'player' },
+            { name: 'Clan', value: 'clan' }
+          )
+      )
+      .addStringOption(option =>
+        option
+          .setName('action')
+          .setDescription('Add, edit, remove or show.')
+          .setRequired(false)
+          .addChoices(
+            { name: 'Add', value: 'add' },
+            { name: 'Edit', value: 'edit' },
+            { name: 'Remove', value: 'remove' },
+            { name: 'Show', value: 'show' }
+          )
+      )
+      .addStringOption(option =>
+        option
+          .setName('name')
+          .setDescription('Roblox username or clan name.')
+          .setRequired(false)
+          .setMaxLength(100)
+      )
+      .addAttachmentOption(option =>
+        option
+          .setName('profile')
+          .setDescription('Roblox Profile image.')
+          .setRequired(false)
+      )
+      .addUserOption(option =>
+        option
+          .setName('discord')
+          .setDescription('Optional Discord account.')
+          .setRequired(false)
+      )
+      .addStringOption(option =>
+        option
+          .setName('external_id')
+          .setDescription('Optional Roblox ID or Clan ID.')
+          .setRequired(false)
+          .setMaxLength(40)
+      )
+      .addStringOption(option =>
+        option
+          .setName('notes')
+          .setDescription('Optional private notes.')
+          .setRequired(false)
+          .setMaxLength(1000)
+      )
+      .addStringOption(option =>
+        option
+          .setName('entry_id')
+          .setDescription('Entry ID for edit/remove.')
+          .setRequired(false)
+          .setMaxLength(80)
+      ),
+
+    new SlashCommandBuilder()
       .setName('purge')
       .setDescription('Delete messages and archive every deleted message in the message logs.')
       .setDefaultMemberPermissions(
