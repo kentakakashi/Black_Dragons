@@ -1,6 +1,10 @@
 const { AuditLogEvent, EmbedBuilder } = require("discord.js");
 const log = require("../systems/logging/logger");
 
+function simpleEmbed(color,title,description,fields=[]) {
+  return new EmbedBuilder().setColor(color).setTitle(title).setDescription(description).addFields(fields).setTimestamp();
+}
+
 module.exports = function registerLogging(client) {
   const run = (name, fn) => fn().catch(e => console.error("❌ Logging "+name+" failed:", e));
 
@@ -80,6 +84,14 @@ module.exports = function registerLogging(client) {
     }
   });
 
+  client.on("guildScheduledEventCreate", e => run("scheduledEventCreate",()=>log.send(e.guild,client.appData,"server",simpleEmbed(0xe67e22,"🏠 SERVER • Scheduled Event Created","📅 **"+e.name+"**").addFields({name:"ID",value:e.id},{name:"Channel",value:e.channel?.toString()||"None"}))));
+  client.on("guildScheduledEventUpdate", (o,n) => run("scheduledEventUpdate",()=>log.send(n.guild,client.appData,"server",simpleEmbed(0xe67e22,"🏠 SERVER • Scheduled Event Updated","📅 **"+n.name+"**").addFields({name:"Before",value:o.name},{name:"After",value:n.name}))));
+  client.on("guildScheduledEventDelete", e => run("scheduledEventDelete",()=>log.send(e.guild,client.appData,"server",simpleEmbed(0xe67e22,"🏠 SERVER • Scheduled Event Deleted","📅 **"+e.name+"**").addFields({name:"ID",value:e.id}))));
+  client.on("emojiCreate", e => run("emojiCreate",()=>log.send(e.guild,client.appData,"server",simpleEmbed(0xe67e22,"🏠 SERVER • Emoji Created","😀 **"+e.name+"**").addFields({name:"ID",value:e.id},{name:"URL",value:e.url}))));
+  client.on("emojiDelete", e => run("emojiDelete",()=>log.send(e.guild,client.appData,"server",simpleEmbed(0xe67e22,"🏠 SERVER • Emoji Deleted","😀 **"+e.name+"**").addFields({name:"ID",value:e.id}))));
+  client.on("stickerCreate", e => run("stickerCreate",()=>log.send(e.guild,client.appData,"server",simpleEmbed(0xe67e22,"🏠 SERVER • Sticker Created","🏷️ **"+e.name+"**").addFields({name:"ID",value:e.id},{name:"Format",value:String(e.format)}))));
+  client.on("stickerDelete", e => run("stickerDelete",()=>log.send(e.guild,client.appData,"server",simpleEmbed(0xe67e22,"🏠 SERVER • Sticker Deleted","🏷️ **"+e.name+"**").addFields({name:"ID",value:e.id}))));
+  client.on("webhooksUpdate", ch => run("webhooksUpdate",()=>log.send(ch.guild,client.appData,"channels",simpleEmbed(0x95a5a6,"📺 CHANNEL • Webhooks Updated","📍 **Channel:** "+ch).addFields({name:"Channel ID",value:ch.id}))));
   client.on("error", e => console.error("Discord client error:",e));
   client.on("warn", w => console.warn("Discord client warning:",w));
 };
