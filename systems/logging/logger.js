@@ -13,7 +13,7 @@ function cfg(data){data.config ||= {};data.config.logs ||= {categoryId:null,chan
 function clip(v,n=900){const s=String(v ?? "");return !s?"*(empty)*":s.length>n?s.slice(0,n-20)+"\n… truncated":s;}
 function permissionNames(bits){ const out=[]; for(const [name,flag] of Object.entries(PermissionsBitField.Flags)){ try{if((BigInt(bits)&BigInt(flag))===BigInt(flag))out.push(name);}catch{} } return out.join(", ")||"None"; }
 function detailsUser(u){return u?"<@"+u.id+">\n**Tag:** "+(u.tag||u.username)+"\n**ID:** "+u.id+"\n**Bot:** "+(u.bot?"Yes":"No"):"Unknown";}
-function detailsChannel(c){return c?"< #"+c.name+" >\n**ID:** "+c.id+"\n**Type:** "+c.type:"Unknown";}
+function detailsChannel(c){return c?"<#"+c.id+"> **"+c.name+"**\n**ID:** "+c.id+"\n**Type:** "+c.type:"Unknown";}
 function when(t=Date.now()){return "<t:"+Math.floor(t/1000)+":F> • <t:"+Math.floor(t/1000)+":R>";}
 function link(m){return m?.guildId&&m?.channelId&&m?.id?"https://discord.com/channels/"+m.guildId+"/"+m.channelId+"/"+m.id:null;}
 function block(v){return "~~~\n"+clip(v,3300)+"\n~~~";}
@@ -64,12 +64,6 @@ async function messageDelete(m,data){
     .addFields({name:"🕐 Deleted",value:when()},{name:"🛡️ Deleted By",value:a?detailsUser(a):"Unknown / unavailable"},{name:"📝 Original",value:block(m.content||"Not cached by the bot.")},{name:"📎 Attachments",value:clip(attachmentText(m),900)},{name:"🆔 Message ID",value:m.id});
   await send(m.guild,data,"message",e);
 }
-async function bulkDelete(messages,channel,data){
-  const list=[...messages.values()].filter(m=>!m.author?.bot);if(!list.length)return;
-  const lines=list.map(m=>"<@"+(m.author?.id||"0")+"> • "+m.id+"\n"+clip(m.content||"(no cached text)",300));
-  for(let i=0;i<lines.length;i+=8){const part=lines.slice(i,i+8).join("\n\n");const e=base("message","Bulk Message Deletion","📍 **Channel:** "+detailsChannel(channel)+"\n🗑️ **Count:** "+list.length+"\n📦 **Part:** "+(Math.floor(i/8)+1))
-    .addFields({name:"Deleted Messages",value:clip(part,3900)});await send(channel.guild,data,"message",e);}
-}
 async function purgeLog(guild,data,channel,mod,messages){
   const list=[...messages.values()].filter(m=>!m.author?.bot);list.forEach(m=>purgeIds.add(m.id));setTimeout(()=>list.forEach(m=>purgeIds.delete(m.id)),15000);
   const lines=list.map(m=>{const l=link(m);return"<@"+(m.author?.id||"0")+"> • "+m.id+(l?" • [Jump]("+l+")":"")+"\n"+clip(m.content||"(no text)",450);});
@@ -110,4 +104,4 @@ async function ensure(guild,data){
   const c=cfg(data);let cat=c.categoryId?guild.channels.cache.get(c.categoryId):null;if(!cat||cat.type!==ChannelType.GuildCategory)cat=guild.channels.cache.find(x=>x.type===ChannelType.GuildCategory&&x.name==="BLACK DRAGONS • LOGS");if(!cat)cat=await guild.channels.create({name:"BLACK DRAGONS • LOGS",type:ChannelType.GuildCategory});c.categoryId=cat.id;
   for(const [type,name] of Object.entries(CHANNELS)){let ch=c.channels[type]?guild.channels.cache.get(c.channels[type]):null;if(!ch)ch=guild.channels.cache.find(x=>x.parentId===cat.id&&x.name===name);if(!ch)ch=await guild.channels.create({name,type:ChannelType.GuildText,parent:cat.id,topic:(TITLES[type]||type)+" • BLACK DRAGONS detailed audit log"});c.channels[type]=ch.id;}return c;
 }
-module.exports={CHANNELS,TITLES,ensure,send,messageCreate,messageUpdate,messageDelete,bulkDelete,purgeLog,markPurge,wasPurged,memberAdd,memberRemove,memberUpdate,ban,roleCreate,roleDelete,roleUpdate,voice,channelCreate,channelDelete,channelUpdate,guildUpdate,inviteCreate,inviteDelete,inviteUse,thread,command,error};
+module.exports={CHANNELS,TITLES,ensure,send,messageCreate,messageUpdate,messageDeletepurgeLog,markPurge,wasPurged,memberAdd,memberRemove,memberUpdate,ban,roleCreate,roleDelete,roleUpdate,voice,channelCreate,channelDelete,channelUpdate,guildUpdate,inviteCreate,inviteDelete,inviteUse,thread,command,error};
