@@ -1,5 +1,5 @@
 
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionFlagsBits, SlashCommandBuilder } = require("discord.js");
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionFlagsBits, SlashCommandBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require("discord.js");
 const { randomUUID } = require("crypto");
 const { saveData } = require("../utils/database");
 
@@ -106,6 +106,26 @@ async function execute(i,c){
     return i.reply({embeds:[new EmbedBuilder().setColor(0x5865f2).setTitle("✏️ BLACKLIST ENTRY UPDATED").setDescription("**"+e.name+"** was updated.").addFields({name:"Changed",value:changed.join(", ")},{name:"🔖 Entry ID",value:"`"+e.id+"`",inline:true}).setThumbnail(e.profileImageUrl).setTimestamp()]});
   }
 }
+async function handleModal(i,c){
+  if(!i.customId.startsWith("blrm:"))return false;
+  if(!admin(i)){await i.reply({content:"❌ Only **Administrators** can use the blacklist system.",ephemeral:true});return true;}
+  const type=i.customId.split(":")[1];
+  const entryId=i.fields.getTextInputValue("entry_id").trim();
+  const store=bl(c.data)[type==="clan"?"clans":"players"];
+  const e=store[entryId];
+  if(!e)return i.reply({content:"❌ That blacklist entry ID was not found.",ephemeral:true});
+  if(e.active===false)return i.reply({content:"ℹ️ That blacklist entry is already removed.",ephemeral:true});
+  await i.reply({
+    content:"⚠️ Remove **"+e.name+"** from the active blacklist?",
+    ephemeral:true,
+    components:[new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("blconfirm:"+type+":"+entryId).setLabel("REMOVE").setEmoji("🗑️").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId("blcancel").setLabel("CANCEL").setStyle(ButtonStyle.Secondary)
+    )]
+  });
+  return true;
+}
+
 async function handleButton(i,c){
   if(!i.customId.startsWith("bl:"))return false;
   if(!admin(i)){await i.reply({content:"❌ Only **Administrators** can use the blacklist system.",ephemeral:true});return true;}
@@ -114,7 +134,32 @@ async function handleButton(i,c){
   if(a==="menu"&&type){await show(i,c.data,type,0,true);return true;}
   if(a==="back"){await i.update({embeds:[menu()],components:[menuButtons()]});return true;}
   if(a==="show"||a==="page"||a==="refresh"){await show(i,c.data,type,Number(p[3]||0),true);return true;}
-  if(a==="addhelp"||a==="edithelp"||a==="removehelp"){const x=a.replace("help","");await i.reply({content:"Use /blacklist with type:"+type+" action:"+x+(x==="add"?" and provide name + Roblox Profile.":" and provide entry_id."),ephemeral:true});return true;}
+  if(a==="removehelp"){
+    const modal=new ModalBuilder().setCustomId("blrm:"+type).setTitle("Remove "+(type==="clan"?"Clan":"Player")+" Blacklist Entry");
+    modal.addComponents(new ActionRowBuilder().addComponents(
+      new TextInputBuilder().setCustomId("entry_id").setLabel("Entry ID").setPlaceholder(type+"_...").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(80)
+    ));
+    await i.showModal(modal);
+    return true;
+  }
+  if(a==="addhelp"||a==="edithelp"){
+    const x=a.replace("help","");
+    await i.reply({content:"Use /blacklist with type:"+type+" action:"+x+(x==="add"?" and provide name + Roblox Profile.":" and provide entry_id."),ephemeral:true});
+    return true;
+  }
+  if(a==="cancel"){
+    await i.update({content:"❌ Cancelled.",components:[]});
+    return true;
+  }
+  if(a==="confirmremove"){
+    const entryId=p[3],store=bl(c.data)[type==="clan"?"clans":"players"],e=store[entryId];
+    if(!e)return i.update({content:"❌ That blacklist entry no longer exists.",components:[]});
+    if(e.active===false)return i.update({content:"ℹ️ That blacklist entry is already removed.",components:[]});
+    e.active=false;e.removedAt=Date.now();e.removedBy=i.user.id;e.updatedAt=Date.now();
+    history(c.data,e,"removed",i.user.id);await saveData(c.data);
+    await i.update({content:"🗑️ **"+e.name+"** was removed from the active blacklist. History retained.",components:[]});
+    return true;
+  }
   return false;
 }
 module.exports={
@@ -128,5 +173,5 @@ module.exports={
     .addStringOption(o=>o.setName("external_id").setDescription("Optional Roblox ID or Clan ID.").setMaxLength(40))
     .addStringOption(o=>o.setName("notes").setDescription("Optional private notes.").setMaxLength(1000))
     .addStringOption(o=>o.setName("entry_id").setDescription("Entry ID for edit/remove.").setMaxLength(80)),
-  execute,handleButton
+  execute,handleButton,handleModal
 };
