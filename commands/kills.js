@@ -71,7 +71,7 @@ module.exports = {
     data.rankHistory.push({
       applicationId:null,
       userId:target.id,
-      robloxUsername:old.robloxUsername||null,
+      robloxUsername:old?.robloxUsername||null,
       kills:newKills,
       rank:nextRank.key,
       action:"admin_kills_"+action,
