@@ -257,7 +257,7 @@ async function openHeadEditor(i) {
   };
   saveSession(s);
   await i.update({
-    embeds: [headEditorEmbed(s)],
+    embeds: [...previewEmbeds(s), headEditorEmbed(s)],
     components: headControls(s),
     allowedMentions: { parse: [] }
   });
@@ -502,7 +502,7 @@ async function openAdd(i) {
     selectedField: null
   };
   saveSession(s);
-  await i.reply({ embeds: [editorEmbed(s)], components: controls(s), ephemeral: true, allowedMentions: { parse: [] } });
+  await i.reply({ embeds: [...previewEmbeds(s), editorEmbed(s)], components: controls(s), ephemeral: true, allowedMentions: { parse: [] } });
 }
 
 async function openPicker(i, mode) {
