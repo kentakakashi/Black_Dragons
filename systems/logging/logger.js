@@ -63,6 +63,7 @@ async function purgeLog(guild,data,channel,mod,messages){
   for(let i=0;i<lines.length;i+=7){const e=base("message",i?"🧹 PURGE • Continued":"🧹 PURGE","🛡️ **Moderator:** "+detailsUser(mod)+"\n📍 **Channel:** "+detailsChannel(channel)+"\n🗑️ **Deleted:** "+list.length+"\n📦 **Part:** "+(Math.floor(i/7)+1))
     .addFields({name:"Deleted Messages",value:clip(lines.slice(i,i+7).join("\n\n"),3900)});await send(guild,data,"message",e);}
 }
+function markPurge(id){purgeIds.add(id);setTimeout(()=>purgeIds.delete(id),20000);}
 function wasPurged(id){return purgeIds.has(id);}
 
 async function memberAdd(m,data){const e=base("users","Member Joined","👤 **Member**\n"+detailsUser(m.user)).addFields({name:"🕐 Joined",value:when(m.joinedTimestamp||Date.now())},{name:"📅 Account Created",value:when(m.user.createdTimestamp)},{name:"👥 Server Members",value:String(m.guild.memberCount)});await send(m.guild,data,"users",e);}
@@ -94,4 +95,4 @@ async function ensure(guild,data){
   const c=cfg(data);let cat=c.categoryId?guild.channels.cache.get(c.categoryId):null;if(!cat||cat.type!==ChannelType.GuildCategory)cat=guild.channels.cache.find(x=>x.type===ChannelType.GuildCategory&&x.name==="BLACK DRAGONS • LOGS");if(!cat)cat=await guild.channels.create({name:"BLACK DRAGONS • LOGS",type:ChannelType.GuildCategory});c.categoryId=cat.id;
   for(const [type,name] of Object.entries(CHANNELS)){let ch=c.channels[type]?guild.channels.cache.get(c.channels[type]):null;if(!ch)ch=guild.channels.cache.find(x=>x.parentId===cat.id&&x.name===name);if(!ch)ch=await guild.channels.create({name,type:ChannelType.GuildText,parent:cat.id,topic:(TITLES[type]||type)+" • BLACK DRAGONS detailed audit log"});c.channels[type]=ch.id;}return c;
 }
-module.exports={CHANNELS,TITLES,ensure,send,messageCreate,messageUpdate,messageDelete,bulkDelete,purgeLog,wasPurged,memberAdd,memberRemove,memberUpdate,ban,roleCreate,roleDelete,roleUpdate,voice,channelCreate,channelDelete,channelUpdate,guildUpdate,inviteCreate,inviteDelete,thread,command,error};
+module.exports={CHANNELS,TITLES,ensure,send,messageCreate,messageUpdate,messageDelete,bulkDelete,purgeLog,markPurge,wasPurged,memberAdd,memberRemove,memberUpdate,ban,roleCreate,roleDelete,roleUpdate,voice,channelCreate,channelDelete,channelUpdate,guildUpdate,inviteCreate,inviteDelete,thread,command,error};
