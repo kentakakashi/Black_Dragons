@@ -70,9 +70,19 @@ function valueText(data, s, guild) {
 function base() { return new EmbedBuilder().setColor(0x8B0000).setFooter({text:"Black Dragons • Setup Panel"}).setTimestamp(); }
 function createHomeEmbed(data, notice, guild) {
   const configured=CATEGORIES.logging.settings.filter(s=>currentValue(data,s.key)).length;
-  return base().setTitle("🐉 BLACK DRAGONS • BOT SETUP").setDescription((notice?notice+"\n\n":"")+"**Choose a category to configure.**\n\n🛠️ **Help Desk** — channels and request roles\n🏆 **Rank System** — registration, review, history and leaderboard\n🎖️ **Rank Roles** — Z through E role mapping\n📋 **Logging** — message, moderation, roles, VC, users, invites, server, channels, bot and general logs
-🚫 **Blacklist** — public player and clan blacklist channels\n\n⚙️ Select settings one by one. Changes stay in a **draft**.\n💾 Press **SAVE ALL** once at the end to save everything together.\n\n📋 **Logging configured:** "+configured+"/10
-🚫 **Blacklist channels:** "+(currentValue(data,"blacklist_players")?"1":"0")+"/2);
+  const blacklistConfigured=[currentValue(data,"blacklist_players"),currentValue(data,"blacklist_clans")].filter(Boolean).length;
+  return base().setTitle("🐉 BLACK DRAGONS • BOT SETUP").setDescription(
+    (notice?notice+"\\n\\n":"")+"**Choose a category to configure.**\\n\\n"+
+    "🛠️ **Help Desk** — channels and request roles\\n"+
+    "🏆 **Rank System** — registration, review, history and leaderboard\\n"+
+    "🎖️ **Rank Roles** — Z through E role mapping\\n"+
+    "📋 **Logging** — message, moderation, roles, VC, users, invites, server, channels, bot and general logs\\n"+
+    "🚫 **Blacklist** — public player and clan blacklist channels\\n\\n"+
+    "⚙️ Select settings one by one. Changes stay in a **draft**.\\n"+
+    "💾 Press **SAVE ALL** once at the end to save everything together.\\n\\n"+
+    "📋 **Logging configured:** "+configured+"/10\\n"+
+    "🚫 **Blacklist channels:** "+blacklistConfigured+"/2"
+  );
 }
 function createCategoryEmbed(data, key, notice, guild) {
   const c=CATEGORIES[key];
