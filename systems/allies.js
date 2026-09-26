@@ -540,12 +540,9 @@ async function initialize() {
       null,
 
     headerEmbed:
-      normalizeHeaderEmbed(
-        cloud.headerEmbed ??
-        local.headerEmbed ??
-        null,
-        (cloud.clans || local.clans || []).length
-      ),
+      cloud.headerEmbed ??
+      local.headerEmbed ??
+      null,
 
     clans: mergeClans(
       local.clans || [],
@@ -555,6 +552,28 @@ async function initialize() {
 
   if (!state.clans.length && !cloud.clans) {
     state.clans = clone(DEFAULT_CLANS);
+  }
+
+  if (!state.headerEmbed) {
+    const legacy = defaultHeaderEmbed(state.clans.length);
+
+    if (state.headerDescription) {
+      legacy.description = state.headerDescription;
+    }
+
+    if (state.headerImageUrl && validUrl(state.headerImageUrl)) {
+      legacy.image = { url: state.headerImageUrl };
+    }
+
+    state.headerEmbed = normalizeHeaderEmbed(
+      legacy,
+      state.clans.length
+    );
+  } else {
+    state.headerEmbed = normalizeHeaderEmbed(
+      state.headerEmbed,
+      state.clans.length
+    );
   }
 
   state.clans = state.clans.map((clan, i) => {
@@ -1009,6 +1028,7 @@ module.exports = {
   updateClan,
   removeClan,
   findClan,
+  normalizeHeaderEmbed,
   extractUserIds,
   normalizeInvite,
   normalizeEmbed,
