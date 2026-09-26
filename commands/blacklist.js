@@ -120,7 +120,7 @@ async function handleModal(i,c){
     ephemeral:true,
     components:[new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("blconfirm:"+type+":"+entryId).setLabel("REMOVE").setEmoji("🗑️").setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId("blcancel").setLabel("CANCEL").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId("bl:cancel").setLabel("CANCEL").setStyle(ButtonStyle.Secondary)
     )]
   });
   return true;
