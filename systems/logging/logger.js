@@ -167,11 +167,6 @@ async function ensure(guild,data){
 
   // Only recover/create the logging category when we actually need a
   // fallback channel. Configured channels themselves never depend on it.
-  const configuredEntries=Object.entries(CHANNELS).filter(
-    ([type])=>Boolean(c.channels[type])
-  );
-  const needsFallback=configuredEntries.some(([type])=>!c.channels[type]);
-
   if(!cat||cat.type!==ChannelType.GuildCategory){
     cat=guild.channels.cache.find(
       x=>x.guildId===guild.id &&
