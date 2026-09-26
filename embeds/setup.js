@@ -22,18 +22,37 @@ const CATEGORIES = {
     { key: "rank_role_C", label: "C • 2,500–4,999", type: "role" },
     { key: "rank_role_D", label: "D • 1,000–2,499", type: "role" },
     { key: "rank_role_E", label: "E • 0–999", type: "role" }
+  ]},
+  logging: { label: "Logging", emoji: "📋", description: "Choose where each detailed audit-log category is sent.", settings: [
+    { key: "log_message", label: "Message Logs", type: "channel" },
+    { key: "log_moderation", label: "Moderation Logs", type: "channel" },
+    { key: "log_roles", label: "Role Logs", type: "channel" },
+    { key: "log_voice", label: "Voice / VC Logs", type: "channel" },
+    { key: "log_users", label: "User Logs", type: "channel" },
+    { key: "log_invites", label: "Invite Logs", type: "channel" },
+    { key: "log_server", label: "Server Logs", type: "channel" },
+    { key: "log_channels", label: "Channel Logs", type: "channel" },
+    { key: "log_bot", label: "Bot Logs", type: "channel" },
+    { key: "log_general", label: "General Logs", type: "channel" }
   ]}
 };
-const CATEGORY_ORDER = ["helpdesk", "rank_channels", "rank_roles"];
+const CATEGORY_ORDER = ["helpdesk", "rank_channels", "rank_roles", "logging"];
 function getSetting(c, k) { return CATEGORIES[c]?.settings.find(s => s.key === k) || null; }
 function currentValue(data, key) {
-  const h = data.config.helpDesk, r = data.config.rank;
-  const map = { helpdesk_channel:h.channelId, war_role:h.warRoleId, backup_role:h.backupRoleId, rank_registration:r.registrationChannelId, rank_review:r.reviewChannelId, rank_history:r.historyChannelId, leaderboard_channel:r.leaderboardChannelId };
+  const h = data.config.helpDesk, r = data.config.rank, logs = data.config.logs?.channels || {};
+  const map = {
+    helpdesk_channel:h.channelId, war_role:h.warRoleId, backup_role:h.backupRoleId,
+    rank_registration:r.registrationChannelId, rank_review:r.reviewChannelId, rank_history:r.historyChannelId,
+    leaderboard_channel:r.leaderboardChannelId,
+    log_message:logs.message, log_moderation:logs.moderation, log_roles:logs.roles, log_voice:logs.voice,
+    log_users:logs.users, log_invites:logs.invites, log_server:logs.server, log_channels:logs.channels,
+    log_bot:logs.bot, log_general:logs.general
+  };
   return key.startsWith("rank_role_") ? (r.rankRoleIds?.[key.replace("rank_role_","")] || null) : (map[key] || null);
 }
 function valueText(data, s) { const v=currentValue(data,s.key); return v ? (s.type==="role" ? "<@&"+v+">" : "<#"+v+">") : "Not configured"; }
 function base() { return new EmbedBuilder().setColor(0x8B0000).setFooter({text:"Black Dragons • Setup Panel"}).setTimestamp(); }
-function createHomeEmbed() { return base().setTitle("🐉 BLACK DRAGONS • BOT SETUP").setDescription("**Choose a category to edit.**\n\n🛠️ **Help Desk** — channels and request roles\n🏆 **Rank System** — registration, review, history and leaderboard channels\n🎖️ **Rank Roles** — Z through E role mapping\n\nPick only the setting you want to change. Changes save immediately.\n\n🔒 The panel is **public**, but only the administrator who started this session can edit it."); }
-function createCategoryEmbed(data, key, notice) { const c=CATEGORIES[key]; const lines=c.settings.map(s => (s.type==="role"?"🎭":"📺")+" **"+s.label+"** — "+valueText(data,s)).join("\n"); return base().setTitle(c.emoji+" BLACK DRAGONS • "+c.label.toUpperCase()).setDescription(c.description+"\n\n"+lines+"\n\n"+(notice?notice+"\n\n":"")+"Select one setting below to edit only that setting."); }
-function createSettingEmbed(data, c, k) { const cat=CATEGORIES[c], s=getSetting(c,k); return base().setTitle(cat.emoji+" "+cat.label+" • "+s.label).setDescription("Current value: **"+valueText(data,s)+"**\n\nChoose the new value below. It will be saved immediately."); }
+function createHomeEmbed(data, notice) { const configured=CATEGORIES.logging.settings.filter(s=>currentValue(data,s.key)).length; return base().setTitle("🐉 BLACK DRAGONS • BOT SETUP").setDescription((notice?notice+"\\n\\n":"")+"**Choose a category to configure.**\\n\\n🛠️ **Help Desk** — channels and request roles\\n🏆 **Rank System** — registration, review, history and leaderboard\\n🎖️ **Rank Roles** — Z through E role mapping\\n📋 **Logging** — message, moderation, roles, VC, users, invites, server, channels, bot and general logs\\n\\n⚙️ Select settings one by one. Changes stay in a **draft**.\\n💾 Press **SAVE ALL** once at the end to save everything together.\\n\\n📋 **Logging configured:** "+configured+"/10"); }
+function createCategoryEmbed(data, key, notice) { const c=CATEGORIES[key]; const lines=c.settings.map(s => (s.type==="role"?"🎭":"📺")+" **"+s.label+"** — "+valueText(data,s)).join("\n"); return base().setTitle(c.emoji+" BLACK DRAGONS • "+c.label.toUpperCase()).setDescription(c.description+"\n\n"+lines+"\n\n"+(notice?notice+"\n\n":"")+"Select a setting, choose its value, then continue. **Nothing is permanently saved until SAVE ALL.**"); }
+function createSettingEmbed(data, c, k) { const cat=CATEGORIES[c], s=getSetting(c,k); return base().setTitle(cat.emoji+" "+cat.label+" • "+s.label).setDescription("Current draft value: **"+valueText(data,s)+"**\n\nChoose the new "+(s.type==="role"?"role":"channel")+" below.\n\n💾 **Nothing is permanently saved until SAVE ALL.**"); }
 module.exports = { CATEGORIES, CATEGORY_ORDER, getSetting, currentValue, createHomeEmbed, createCategoryEmbed, createSettingEmbed };
