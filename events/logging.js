@@ -5,7 +5,9 @@ function simpleEmbed(color,title,description,fields=[]) {
   return new EmbedBuilder().setColor(color).setTitle(title).setDescription(description).addFields(fields).setTimestamp();
 }
 
-module.exports = function registerLogging(client) {
+module.exports = function registerLogging(client) {\n  const inviteUses = new Map();
+  const snapshotInvites = async guild => { try { const invites = await guild.invites.fetch(); inviteUses.set(guild.id,new Map(invites.map(i=>[i.code,i.uses||0]))); } catch {} };
+
   const run = (name, fn) => fn().catch(e => console.error("❌ Logging "+name+" failed:", e));
 
   client.on("messageCreate", m => run("messageCreate",()=>log.messageCreate(m,client.appData)));
@@ -13,7 +15,16 @@ module.exports = function registerLogging(client) {
   client.on("messageDelete", m => { if (!log.wasPurged(m.id)) run("messageDelete",()=>log.messageDelete(m,client.appData)); });
   client.on("messageDeleteBulk", (messages,ch) => run("messageDeleteBulk",()=>log.bulkDelete(messages,ch,client.appData)));
 
-  client.on("guildMemberAdd", m => run("memberAdd",()=>log.memberAdd(m,client.appData)));
+  client.on("guildMemberAdd", async m => {
+    run("memberAdd",()=>log.memberAdd(m,client.appData));
+    try {
+      const before = inviteUses.get(m.guild.id) || new Map();
+      const invites = await m.guild.invites.fetch();
+      const used = invites.find(i => (i.uses||0) > (before.get(i.code)||0));
+      if (used) await log.inviteUse(m.guild,client.appData,m,used);
+      inviteUses.set(m.guild.id,new Map(invites.map(i=>[i.code,i.uses||0])));
+    } catch {}
+  });
   client.on("guildMemberRemove", async m => {
     try {
       const a = await m.guild.fetchAuditLogs({type:AuditLogEvent.MemberKick,limit:5});
@@ -63,10 +74,10 @@ module.exports = function registerLogging(client) {
   client.on("threadDelete", t => run("threadDelete",()=>log.thread("deleted",t,client.appData)));
 
   client.on("guildUpdate", (o,n) => run("guildUpdate",()=>log.guildUpdate(o,n,client.appData)));
-  client.on("inviteCreate", i => run("inviteCreate",()=>log.inviteCreate(i,client.appData)));
-  client.on("inviteDelete", i => run("inviteDelete",()=>log.inviteDelete(i,client.appData)));
+  client.on("inviteCreate", i => { run("inviteCreate",()=>log.inviteCreate(i,client.appData)); const map=inviteUses.get(i.guild.id)||new Map(); map.set(i.code,i.uses||0); inviteUses.set(i.guild.id,map); });
+  client.on("inviteDelete", i => { run("inviteDelete",()=>log.inviteDelete(i,client.appData)); const map=inviteUses.get(i.guild.id)||new Map(); map.delete(i.code); inviteUses.set(i.guild.id,map); });
 
-  client.on("interactionCreate", i => {
+  client.once("ready", () => { for (const guild of client.guilds.cache.values()) snapshotInvites(guild); });\n\n  client.on("interactionCreate", i => {
     if (i.isChatInputCommand()) run("command",()=>log.command(i,client.appData));
   });
   client.on("userUpdate", (o,n) => {
