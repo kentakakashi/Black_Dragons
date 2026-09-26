@@ -70,6 +70,176 @@ function sectionMenu(s) {
     );
 }
 
+function headSectionMenu(s) {
+  return new StringSelectMenuBuilder()
+    .setCustomId("aehf:section:" + s.id)
+    .setPlaceholder("Choose what you want to edit...")
+    .addOptions(
+      { label: "Basic Embed", description: "Title, URL, description", value: "basic", emoji: "📝" },
+      { label: "Appearance", description: "Embed color", value: "style", emoji: "🎨" },
+      { label: "Image", description: "Set the banner image shown on the top embed", value: "image", emoji: "🖼️" },
+      { label: "Thumbnail", description: "Set the embed thumbnail", value: "thumbnail", emoji: "🔳" },
+      { label: "Author", description: "Author name, URL, icon", value: "author", emoji: "👤" },
+      { label: "Footer", description: "Footer text and icon", value: "footer", emoji: "📌" },
+      { label: "Fields", description: "Manage up to 25 fields", value: "fields", emoji: "🧱" },
+      { label: "Timestamp", description: "Set or clear timestamp", value: "time", emoji: "⏱️" }
+    );
+}
+
+function headEditorEmbed(s) {
+  const d = s.draft;
+  const c = Number.isInteger(d.color) ? d.color : 0x7c3aed;
+  return new EmbedBuilder()
+    .setColor(c)
+    .setTitle("🛠️ HEAD EMBED EDITOR")
+    .setDescription(
+      "Edit the **top BLACK DRAGONS • ALLIES embed**.\\n\\n" +
+      "📝 **Title:** " + (d.title || "Not set") + "\\n" +
+      "📄 **Description:** " + (d.description ? "Set" : "Not set") + "\\n" +
+      "🖼️ **Image:** " + (d.image?.url ? "Set" : "Not set") + "\\n" +
+      "🔳 **Thumbnail:** " + (d.thumbnail?.url ? "Set" : "Not set") + "\\n" +
+      "🧱 **Fields:** " + (d.fields?.length || 0) + "/25\\n" +
+      "🎨 **Color:** #" + c.toString(16).padStart(6, "0").toUpperCase() + "\\n\\n" +
+      "**Nothing is saved until SAVE is pressed.**"
+    )
+    .addFields(
+      { name: "AUTHOR", value: d.author?.name || "—", inline: true },
+      { name: "FOOTER", value: d.footer?.text || "—", inline: true }
+    )
+    .setFooter({ text: "Admin-only • 30-minute editing session" });
+}
+
+function headControls(s) {
+  return [
+    row(headSectionMenu(s)),
+    row(
+      new ButtonBuilder().setCustomId("aeh:save:" + s.id).setLabel("SAVE").setEmoji("💾").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId("aeh:cancel:" + s.id).setLabel("CANCEL").setEmoji("✖️").setStyle(ButtonStyle.Danger)
+    )
+  ];
+}
+
+async function renderHead(i, s) {
+  saveSession(s);
+  await i.update({ embeds: [headEditorEmbed(s)], components: headControls(s), allowedMentions: { parse: [] } });
+}
+
+function headFieldSelect(s) {
+  const fs = (s.draft.fields || []).slice(0, 25);
+  const opts = fs.map((f, n) => ({
+    label: (n + 1) + ". " + String(f.name || "Unnamed").slice(0, 92),
+    value: String(n),
+    description: String(f.value || "").slice(0, 90)
+  }));
+  if (!opts.length) opts.push({ label: "No fields yet", value: "none" });
+  const x = new StringSelectMenuBuilder()
+    .setCustomId("aehf:fieldpick:" + s.id)
+    .setPlaceholder(opts[0].value === "none" ? "No fields yet" : "Select a field");
+  if (opts[0].value === "none") x.setDisabled(true);
+  return x.addOptions(opts);
+}
+
+async function showHeadFields(i, s) {
+  const e = new EmbedBuilder()
+    .setColor(Number.isInteger(s.draft.color) ? s.draft.color : 0x7c3aed)
+    .setTitle("🧱 HEAD EMBED FIELD MANAGER")
+    .setDescription("Manage up to **25 fields**. Selected: **" + (s.selectedField === null ? "None" : "#" + (s.selectedField + 1)) + "**");
+  (s.draft.fields || []).slice(0, 25).forEach((f, n) => e.addFields({
+    name: (n + 1) + ". " + (f.name || "Unnamed field"),
+    value: String(f.value || "—").slice(0, 1024),
+    inline: Boolean(f.inline)
+  }));
+  saveSession(s);
+  await i.update({
+    embeds: [e],
+    components: [
+      row(headFieldSelect(s)),
+      row(
+        new ButtonBuilder().setCustomId("aeh:addfield:" + s.id).setLabel("ADD FIELD").setEmoji("➕").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("aeh:editfield:" + s.id).setLabel("EDIT").setEmoji("✏️").setStyle(ButtonStyle.Primary).setDisabled(s.selectedField === null),
+        new ButtonBuilder().setCustomId("aeh:removefield:" + s.id).setLabel("DELETE").setEmoji("🗑️").setStyle(ButtonStyle.Danger).setDisabled(s.selectedField === null),
+        new ButtonBuilder().setCustomId("aeh:clearfields:" + s.id).setLabel("CLEAR").setEmoji("🧹").setStyle(ButtonStyle.Secondary).setDisabled(!s.draft.fields?.length),
+        new ButtonBuilder().setCustomId("aeh:back:" + s.id).setLabel("BACK").setStyle(ButtonStyle.Secondary)
+      )
+    ],
+    allowedMentions: { parse: [] }
+  });
+}
+
+async function headFieldModal(i, s, index) {
+  const f = index === null ? { name: "", value: "", inline: false } : (s.draft.fields[index] || { name: "", value: "", inline: false });
+  const x = makeModal("aehm:field:" + s.id + ":" + (index === null ? "new" : index), index === null ? "➕ Add Head Embed Field" : "✏️ Edit Head Embed Field");
+  x.addComponents(
+    row(input("name", "Field name", f.name, TextInputStyle.Short, true, 256)),
+    row(input("value", "Field value", f.value, TextInputStyle.Paragraph, true, 1024)),
+    row(input("inline", "Inline? YES or NO", f.inline ? "YES" : "NO", TextInputStyle.Short, true, 3))
+  );
+  await i.showModal(x);
+}
+
+async function showHeadSection(i, s, type) {
+  const d = s.draft;
+  let x;
+  if (type === "basic") {
+    x = makeModal("aehm:basic:" + s.id, "📝 Head Embed Basic");
+    x.addComponents(
+      row(input("title", "Title", d.title, TextInputStyle.Short, false, 256)),
+      row(input("url", "Title URL", d.url, TextInputStyle.Short, false, 1000)),
+      row(input("description", "Description", d.description, TextInputStyle.Paragraph, false, 4096))
+    );
+  } else if (type === "style") {
+    x = makeModal("aehm:style:" + s.id, "🎨 Head Embed Color");
+    x.addComponents(row(input("color", "HEX color, example 7C3AED", "#" + Number(d.color || 0x7c3aed).toString(16).padStart(6, "0"), TextInputStyle.Short, true, 7)));
+  } else if (type === "image") {
+    x = makeModal("aehm:image:" + s.id, "🖼️ Head Embed Image");
+    x.addComponents(row(input("url", "Banner image URL / CLEAR", d.image?.url || "", TextInputStyle.Short, false, 1000)));
+  } else if (type === "thumbnail") {
+    x = makeModal("aehm:thumbnail:" + s.id, "🔳 Head Embed Thumbnail");
+    x.addComponents(row(input("url", "Thumbnail URL / CLEAR", d.thumbnail?.url || "", TextInputStyle.Short, false, 1000)));
+  } else if (type === "author") {
+    const a = d.author || {};
+    x = makeModal("aehm:author:" + s.id, "👤 Head Embed Author");
+    x.addComponents(
+      row(input("name", "Author name", a.name || "", TextInputStyle.Short, false, 256)),
+      row(input("url", "Author URL", a.url || "", TextInputStyle.Short, false, 1000)),
+      row(input("icon", "Author icon URL", a.icon_url || "", TextInputStyle.Short, false, 1000))
+    );
+  } else if (type === "footer") {
+    const f = d.footer || {};
+    x = makeModal("aehm:footer:" + s.id, "📌 Head Embed Footer");
+    x.addComponents(
+      row(input("text", "Footer text", f.text || "", TextInputStyle.Short, false, 2048)),
+      row(input("icon", "Footer icon URL", f.icon_url || "", TextInputStyle.Short, false, 1000))
+    );
+  } else if (type === "time") {
+    x = makeModal("aehm:time:" + s.id, "⏱️ Head Embed Timestamp");
+    x.addComponents(row(input("timestamp", "ISO timestamp or CLEAR", d.timestamp || "", TextInputStyle.Short, false, 64)));
+  }
+  if (x) await i.showModal(x);
+}
+
+async function openHeadEditor(i) {
+  await allies.initialize();
+  const state = allies.getState();
+  const draft = clone(
+    state.headerEmbed ||
+    allies.normalizeHeaderEmbed(null, state.clans.length)
+  );
+  const s = {
+    id: token(),
+    ownerId: i.user.id,
+    mode: "head",
+    draft,
+    selectedField: null
+  };
+  saveSession(s);
+  await i.update({
+    embeds: [headEditorEmbed(s)],
+    components: headControls(s),
+    allowedMentions: { parse: [] }
+  });
+}
+
 function editorEmbed(s) {
   const d = s.draft, m = s.meta;
   const c = Number.isInteger(d.color) ? d.color : 0x7c3aed;
@@ -249,19 +419,35 @@ async function openAdd(i) {
 async function openPicker(i, mode) {
   await allies.initialize();
   const clans = allies.getState().clans;
-  if (!clans.length) {
-    await i.reply({ content: "❌ There are no allied clans yet.", ephemeral: true });
-    return;
-  }
+
+  const options = [
+    {
+      label: "HEAD EMBED",
+      description: "Edit the top Allies embed and its banner image",
+      value: "__head__",
+      emoji: "🖼️"
+    },
+    ...clans.slice(0, 24).map(c => ({
+      label: c.name.slice(0, 100),
+      value: c.id,
+      description: (c.leaderIds?.length || 0) + " leader(s)"
+    }))
+  ];
+
   const x = new StringSelectMenuBuilder()
     .setCustomId("aeclan:" + mode + ":" + token())
     .setPlaceholder(mode === "update" ? "Choose a clan to edit" : "Choose a clan to remove")
-    .addOptions(clans.slice(0, 25).map(c => ({
-      label: c.name.slice(0, 100), value: c.id, description: (c.leaderIds?.length || 0) + " leader(s)"
-    })));
+    .addOptions(options);
+
   await i.reply({
-    embeds: [new EmbedBuilder().setColor(0x7c3aed).setTitle(mode === "update" ? "🛠️ EDIT ALLIED CLAN" : "🗑️ REMOVE ALLIED CLAN").setDescription("Choose a clan below.")],
-    components: [row(x)], ephemeral: true
+    embeds: [new EmbedBuilder()
+      .setColor(0x7c3aed)
+      .setTitle(mode === "update" ? "🛠️ EDIT ALLIES" : "🗑️ REMOVE ALLIED CLAN")
+      .setDescription(mode === "update"
+        ? "Choose **HEAD EMBED** to edit the top Allies embed, or choose a clan below."
+        : "Choose a clan below to remove.")],
+    components: [row(x)],
+    ephemeral: true
   });
 }
 
@@ -277,6 +463,9 @@ async function handleCommand(i, subcommand) {
 }
 
 async function handleButton(i) {
+  if (i.customId.startsWith("aeh:")) {
+    return handleHeadButton(i);
+  }
   if (!i.customId.startsWith("ae:")) return false;
   const s = getSession(i);
   if (!s || s.ownerId !== i.user.id) {
@@ -372,14 +561,122 @@ async function handleButton(i) {
   return true;
 }
 
-async function handleSelect(i) {
+async function handleHeadButton(i) {
+  const p = i.customId.split(":");
+  const s = sessions.get(p[p.length - 1]);
+  if (!s || s.ownerId !== i.user.id || s.mode !== "head") {
+    await i.reply({ content: "❌ This head embed editor expired. Run /allies update again.", ephemeral: true });
+    return true;
+  }
+  saveSession(s);
+  const action = p[1];
+
+  if (action === "save") {
+    await i.deferUpdate();
+    try {
+      const r = await allies.updateHeader(i.client, s.draft);
+      if (!r.ok) throw new Error(r.reason || "Save failed");
+      sessions.delete(s.id);
+      await i.editReply({
+        embeds: [new EmbedBuilder().setColor(0x22c55e).setTitle("✅ HEAD EMBED SAVED").setDescription("The top Allies embed was updated and the permanent Allies message was refreshed.")],
+        components: []
+      });
+    } catch (e) {
+      console.error("❌ Head embed save failed:", e);
+      await i.editReply({
+        embeds: [new EmbedBuilder().setColor(0xef4444).setTitle("❌ SAVE FAILED").setDescription("The head embed was not saved.\n\n" + String(e.message || e))],
+        components: []
+      });
+    }
+    return true;
+  }
+
+  if (action === "cancel") {
+    sessions.delete(s.id);
+    await i.update({
+      embeds: [new EmbedBuilder().setColor(0xef4444).setTitle("✖️ HEAD EMBED EDITOR CANCELLED").setDescription("No changes were saved.")],
+      components: []
+    });
+    return true;
+  }
+
+  if (action === "back") {
+    await renderHead(i, s);
+    return true;
+  }
+
+  if (action === "addfield") {
+    if (s.draft.fields.length >= 25) {
+      await i.reply({ content: "❌ You already have 25 fields.", ephemeral: true });
+      return true;
+    }
+    await headFieldModal(i, s, null);
+    return true;
+  }
+
+  if (action === "editfield") {
+    if (s.selectedField === null) {
+      await i.reply({ content: "❌ Select a field first.", ephemeral: true });
+      return true;
+    }
+    await headFieldModal(i, s, s.selectedField);
+    return true;
+  }
+
+  if (action === "removefield") {
+    if (s.selectedField === null) {
+      await i.reply({ content: "❌ Select a field first.", ephemeral: true });
+      return true;
+    }
+    s.draft.fields.splice(s.selectedField, 1);
+    s.selectedField = null;
+    await showHeadFields(i, s);
+    return true;
+  }
+
+  if (action === "clearfields") {
+    s.draft.fields = [];
+    s.selectedField = null;
+    await showHeadFields(i, s);
+    return true;
+  }
+
+  return true;
+}
+
+async function handleSelect(i) {{
+    if (i.customId.startsWith("aehf:")) {
+      const p = i.customId.split(":");
+      const s = sessions.get(p[p.length - 1]);
+      if (!s || s.ownerId !== i.user.id || s.mode !== "head") {
+        await i.reply({ content: "❌ This head embed editor expired.", ephemeral: true });
+        return true;
+      }
+      saveSession(s);
+      const type = i.values[0];
+      if (type === "fields") {
+        await showHeadFields(i, s);
+      } else {
+        await showHeadSection(i, s, type);
+      }
+      return true;
+    }
+
+
   if (i.customId.startsWith("aeclan:")) {
     if (!isAdmin(i)) {
       await i.reply({ content: "❌ Administrator only.", ephemeral: true });
       return true;
     }
     const p = i.customId.split(":");
-    const mode = p[1], clan = allies.findClan(i.values[0]);
+    const mode = p[1];
+
+    if (mode === "update" && i.values[0] === "__head__") {
+      await openHeadEditor(i);
+      return true;
+    }
+
+    const clan = allies.findClan(i.values[0]);
     if (!clan) {
       await i.update({ content: "❌ Clan not found.", embeds: [], components: [] });
       return true;
@@ -464,6 +761,102 @@ async function handleOtherButton(i) {
 }
 
 async function handleModal(i) {
+  if (i.customId.startsWith("aehm:")) {
+    const p = i.customId.split(":");
+    const s = sessions.get(p[2]);
+    if (!s || s.ownerId !== i.user.id || s.mode !== "head") {
+      await i.reply({ content: "❌ This head embed editor expired. Run /allies update again.", ephemeral: true });
+      return true;
+    }
+    saveSession(s);
+    const type = p[1];
+
+    if (type === "field") {
+      const index = p[3] === "new" ? null : Number(p[3]);
+      const name = clean(i.fields.getTextInputValue("name"));
+      const value = clean(i.fields.getTextInputValue("value"));
+      const inline = /^yes$/i.test(clean(i.fields.getTextInputValue("inline")));
+      if (!name || !value) {
+        await i.reply({ content: "❌ Field name and value are required.", ephemeral: true });
+        return true;
+      }
+      if (index === null) {
+        if (s.draft.fields.length >= 25) {
+          await i.reply({ content: "❌ Discord allows a maximum of 25 fields.", ephemeral: true });
+          return true;
+        }
+        s.draft.fields.push({ name, value, inline });
+      } else if (s.draft.fields[index]) {
+        s.draft.fields[index] = { name, value, inline };
+      }
+      await showHeadFields(i, s);
+      return true;
+    }
+
+    if (type === "basic") {
+      s.draft.title = clean(i.fields.getTextInputValue("title"));
+      s.draft.url = clean(i.fields.getTextInputValue("url")) || null;
+      s.draft.description = clean(i.fields.getTextInputValue("description"));
+    }
+
+    if (type === "style") {
+      const color = hex(i.fields.getTextInputValue("color"));
+      if (color === null) {
+        await i.reply({ content: "❌ Invalid HEX color. Example: 7C3AED.", ephemeral: true });
+        return true;
+      }
+      s.draft.color = color;
+    }
+
+    if (type === "image" || type === "thumbnail") {
+      const value = clean(i.fields.getTextInputValue("url"));
+      if (value && !/^clear$/i.test(value) && !validUrl(value)) {
+        await i.reply({ content: "❌ Image URL must be a full http:// or https:// URL, or CLEAR.", ephemeral: true });
+        return true;
+      }
+      const target = /^clear$/i.test(value) || !value ? null : { url: value };
+      s.draft[type === "image" ? "image" : "thumbnail"] = target;
+    }
+
+    if (type === "author") {
+      const name = clean(i.fields.getTextInputValue("name"));
+      const url = clean(i.fields.getTextInputValue("url"));
+      const icon = clean(i.fields.getTextInputValue("icon"));
+      if (!validUrl(url) || !validUrl(icon)) {
+        await i.reply({ content: "❌ Author URLs must be full http:// or https:// URLs.", ephemeral: true });
+        return true;
+      }
+      s.draft.author = name ? { name, url: url || null, icon_url: icon || null } : null;
+    }
+
+    if (type === "footer") {
+      const textValue = clean(i.fields.getTextInputValue("text"));
+      const icon = clean(i.fields.getTextInputValue("icon"));
+      if (!validUrl(icon)) {
+        await i.reply({ content: "❌ Footer icon must be a full http:// or https:// URL.", ephemeral: true });
+        return true;
+      }
+      s.draft.footer = textValue ? { text: textValue, icon_url: icon || null } : null;
+    }
+
+    if (type === "time") {
+      const value = clean(i.fields.getTextInputValue("timestamp"));
+      if (!value || /^clear$/i.test(value)) {
+        s.draft.timestamp = null;
+      } else {
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) {
+          await i.reply({ content: "❌ Invalid timestamp. Use ISO format or CLEAR.", ephemeral: true });
+          return true;
+        }
+        s.draft.timestamp = date.toISOString();
+      }
+    }
+
+    await renderHead(i, s);
+    return true;
+  }
+
   if (!i.customId.startsWith("aem:")) return false;
   const p = i.customId.split(":"), s = sessions.get(p[2]);
   if (!s || s.ownerId !== i.user.id) {
