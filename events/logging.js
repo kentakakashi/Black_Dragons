@@ -103,6 +103,8 @@ module.exports = function registerLogging(client) {\n  const inviteUses = new Ma
   client.on("stickerCreate", e => run("stickerCreate",()=>log.send(e.guild,client.appData,"server",simpleEmbed(0xe67e22,"🏠 SERVER • Sticker Created","🏷️ **"+e.name+"**").addFields({name:"ID",value:e.id},{name:"Format",value:String(e.format)}))));
   client.on("stickerDelete", e => run("stickerDelete",()=>log.send(e.guild,client.appData,"server",simpleEmbed(0xe67e22,"🏠 SERVER • Sticker Deleted","🏷️ **"+e.name+"**").addFields({name:"ID",value:e.id}))));
   client.on("webhooksUpdate", ch => run("webhooksUpdate",()=>log.send(ch.guild,client.appData,"channels",simpleEmbed(0x95a5a6,"📺 CHANNEL • Webhooks Updated","📍 **Channel:** "+ch).addFields({name:"Channel ID",value:ch.id}))));
+  client.on("guildCreate", g => run("guildCreate",()=>log.send(g,client.appData,"general",simpleEmbed(0x607d8b,"📋 GENERAL • Bot Joined Server","🤖 **Guild:** "+g.name).addFields({name:"Guild ID",value:g.id},{name:"Members",value:String(g.memberCount)}))));
+  client.on("guildDelete", g => console.log("📋 Bot left/unavailable from guild:",g.id,g.name));
   client.on("error", e => console.error("Discord client error:",e));
   client.on("warn", w => console.warn("Discord client warning:",w));
 };
