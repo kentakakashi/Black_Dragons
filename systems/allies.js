@@ -797,21 +797,44 @@ async function setup(client, channelId) {
   return r;
 }
 
+function syncHeaderLegacyChanges(changes) {
+  const hasDescription = Object.prototype.hasOwnProperty.call(changes, 'headerDescription');
+  const hasImage = Object.prototype.hasOwnProperty.call(changes, 'headerImageUrl');
+
+  if (!hasDescription && !hasImage) return;
+
+  state.headerEmbed = normalizeHeaderEmbed(
+    state.headerEmbed,
+    state.clans.length
+  );
+
+  if (hasDescription) {
+    state.headerDescription = changes.headerDescription
+      ? String(changes.headerDescription).trim()
+      : null;
+
+    state.headerEmbed.description =
+      state.headerDescription ||
+      defaultHeaderEmbed(state.clans.length).description;
+  }
+
+  if (hasImage) {
+    state.headerImageUrl =
+      changes.headerImageUrl && validUrl(changes.headerImageUrl)
+        ? String(changes.headerImageUrl).trim()
+        : null;
+
+    state.headerEmbed.image =
+      state.headerImageUrl
+        ? { url: state.headerImageUrl }
+        : null;
+  }
+}
+
 async function addClan(client, input) {
   await initialize();
 
-  if (input.headerDescription !== undefined) {
-    state.headerDescription = input.headerDescription
-      ? String(input.headerDescription).trim()
-      : null;
-  }
-
-  if (input.headerImageUrl !== undefined) {
-    state.headerImageUrl =
-      input.headerImageUrl && validUrl(input.headerImageUrl)
-        ? String(input.headerImageUrl).trim()
-        : null;
-  }
+  syncHeaderLegacyChanges(input);
 
   if (state.clans.length >= MAX_CLANS) {
     return {
@@ -895,18 +918,7 @@ async function addClan(client, input) {
 async function updateClan(client, query, changes) {
   await initialize();
 
-  if (changes.headerDescription !== undefined) {
-    state.headerDescription = changes.headerDescription
-      ? String(changes.headerDescription).trim()
-      : null;
-  }
-
-  if (changes.headerImageUrl !== undefined) {
-    state.headerImageUrl =
-      changes.headerImageUrl && validUrl(changes.headerImageUrl)
-        ? String(changes.headerImageUrl).trim()
-        : null;
-  }
+  syncHeaderLegacyChanges(changes);
 
   const clan = findClan(query);
 
