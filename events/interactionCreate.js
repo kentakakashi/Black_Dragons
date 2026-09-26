@@ -234,6 +234,9 @@ module.exports =
             if (
               customId.startsWith(
                 'bl:'
+              ) ||
+              customId.startsWith(
+                'blconfirm:'
               )
             ) {
               const blacklist =
