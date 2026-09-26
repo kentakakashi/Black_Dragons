@@ -243,8 +243,42 @@ async function voice(o,n,data){
   if(!n.guild)return;const c=[];let title="Voice State Changed";if(!o.channelId&&n.channelId){title="Voice Joined";c.push("**Channel:** "+n.channel);}else if(o.channelId&&!n.channelId){title="Voice Left";c.push("**Channel:** "+(o.channel||"Unknown"));}else if(o.channelId!==n.channelId){title="Voice Channel Moved";c.push("**From:** "+(o.channel||"Unknown")+"\n**To:** "+(n.channel||"Unknown"));}
   if(o.serverMute!==n.serverMute)c.push("**Server Mute:** "+(o.serverMute?"ON":"OFF")+" → "+(n.serverMute?"ON":"OFF"));if(o.serverDeaf!==n.serverDeaf)c.push("**Server Deaf:** "+(o.serverDeaf?"ON":"OFF")+" → "+(n.serverDeaf?"ON":"OFF"));if(o.selfMute!==n.selfMute)c.push("**Self Mute:** "+(o.selfMute?"ON":"OFF")+" → "+(n.selfMute?"ON":"OFF"));if(o.selfDeaf!==n.selfDeaf)c.push("**Self Deaf:** "+(o.selfDeaf?"ON":"OFF")+" → "+(n.selfDeaf?"ON":"OFF"));if(o.streaming!==n.streaming)c.push("**Streaming:** "+(o.streaming?"ON":"OFF")+" → "+(n.streaming?"ON":"OFF"));if(o.selfVideo!==n.selfVideo)c.push("**Camera:** "+(o.selfVideo?"ON":"OFF")+" → "+(n.selfVideo?"ON":"OFF"));if(!c.length)return;const a=o.channelId!==n.channelId?await actor(n.guild,AuditLogEvent.MemberMove,n.id):null;const e=base("voice",title,"👤 **User**\n"+detailsUser(n.member?.user||o.member?.user)).addFields({name:"🕐 Time",value:when()},{name:"🔎 Details",value:clip(c.join("\n"),3800)},{name:"🛡️ Changed By",value:a?detailsUser(a):"User / Unknown"});await send(n.guild,data,"voice",e);
 }
-async function channelCreate(ch,data){if(!ch.guild)return;const a=await actor(ch.guild,AuditLogEvent.ChannelCreate,ch.id),e=base("channels","Channel Created","📺 **Channel:** "+ch).addFields({name:"Name",value:ch.name,inline:true},{name:"ID",value:ch.id,inline:true},{name:"Type",value:String(ch.type),inline:true},{name:"Category",value:ch.parent?ch.parent.toString():"None"},{name:"🛡️ Created By",value:a?detailsUser(a):"Unknown"});await send(ch.guild,data,"channels",e);}
-async function channelDelete(ch,data){if(!ch.guild)return;const a=await actor(ch.guild,AuditLogEvent.ChannelDelete,ch.id),e=base("channels","Channel Deleted","📺 **Channel:** #"+ch.name).addFields({name:"ID",value:ch.id,inline:true},{name:"Type",value:String(ch.type),inline:true},{name:"🛡️ Deleted By",value:a?detailsUser(a):"Unknown"});await send(ch.guild,data,"channels",e);}
+function channelCategoryText(ch){
+  if(!ch?.parent) return "None";
+  return "**"+ch.parent.name+"**\\n**ID:** "+ch.parent.id;
+}
+async function channelCreate(ch,data){
+  if(!ch.guild)return;
+  const a=await actor(ch.guild,AuditLogEvent.ChannelCreate,ch.id);
+  const isCategory=ch.type===ChannelType.GuildCategory;
+  const e=base("channels",isCategory?"Category Created":"Channel Created",isCategory
+    ?"📁 **A category was created.**"
+    :"📺 **A channel was created.**"
+  ).addFields(
+    {name:"Name",value:ch.name,inline:true},
+    {name:"ID",value:ch.id,inline:true},
+    {name:"Type",value:isCategory?"Category":String(ch.type),inline:true},
+    ...(isCategory?[]:[{name:"📁 Category",value:channelCategoryText(ch)}]),
+    {name:"🛡️ Created By",value:a?detailsUser(a):"Unknown"}
+  );
+  await send(ch.guild,data,"channels",e);
+}
+async function channelDelete(ch,data){
+  if(!ch.guild)return;
+  const a=await actor(ch.guild,AuditLogEvent.ChannelDelete,ch.id);
+  const isCategory=ch.type===ChannelType.GuildCategory;
+  const e=base("channels",isCategory?"Category Deleted":"Channel Deleted",isCategory
+    ?"📁 **A category was deleted.**"
+    :"📺 **A channel was deleted.**"
+  ).addFields(
+    {name:"Name",value:ch.name,inline:true},
+    {name:"ID",value:ch.id,inline:true},
+    {name:"Type",value:isCategory?"Category":String(ch.type),inline:true},
+    ...(isCategory?[]:[{name:"📁 Category",value:channelCategoryText(ch)}]),
+    {name:"🛡️ Deleted By",value:a?detailsUser(a):"Unknown"}
+  );
+  await send(ch.guild,data,"channels",e);
+}
 async function channelUpdate(o,n,data){if(!n.guild)return;const c=[];if(o.name!==n.name)c.push("**Name:** "+o.name+" → "+n.name);if(o.topic!==n.topic){const d=diff(o.topic||"",n.topic||"");c.push("**Topic**\nPrevious: "+d.old+"\nNew: "+d.next);}if(o.parentId!==n.parentId)c.push("**Category:** "+(o.parent?.toString()||"None")+" → "+(n.parent?.toString()||"None"));if(o.rateLimitPerUser!==n.rateLimitPerUser)c.push("**Slowmode:** "+o.rateLimitPerUser+"s → "+n.rateLimitPerUser+"s");if(o.permissionOverwrites?.cache?.size!==n.permissionOverwrites?.cache?.size || o.permissionOverwrites?.cache?.some((x,id)=>{const y=n.permissionOverwrites.cache.get(id);return !y||x.allow.bitfield!==y.allow.bitfield||x.deny.bitfield!==y.deny.bitfield;})) { const rows=[]; for(const [id,x] of n.permissionOverwrites.cache){const y=o.permissionOverwrites?.cache?.get(id); if(!y||x.allow.bitfield!==y.allow.bitfield||x.deny.bitfield!==y.deny.bitfield) rows.push("**Overwrite "+id+"**\nAllow: "+permissionNames(x.allow.bitfield)+"\nDeny: "+permissionNames(x.deny.bitfield));} c.push("**Permission Overwrites**\n"+clip(rows.join("\n\n"),1800)); }if(!c.length)return;const a=await actor(n.guild,AuditLogEvent.ChannelUpdate,n.id),e=base("channels","Channel Updated","📺 **Channel:** "+n).addFields({name:"🔎 Changes",value:clip(c.join("\n\n"),3800)},{name:"🛡️ Changed By",value:a?detailsUser(a):"Unknown"});await send(n.guild,data,"channels",e);}
 async function guildUpdate(o,n,data){const c=[];if(o.name!==n.name)c.push("**Name:** "+o.name+" → "+n.name);if(o.description!==n.description){const d=diff(o.description||"",n.description||"");c.push("**Description**\nPrevious: "+d.old+"\nNew: "+d.next);}if(o.icon!==n.icon)c.push("**Icon:** "+(o.icon?"Changed/removed":"None")+" → "+(n.icon?"Changed":"None"));if(!c.length)return;const a=await actor(n,AuditLogEvent.GuildUpdate,n.id),e=base("server","Server Updated","🏠 **"+n.name+"**").addFields({name:"🔎 Changes",value:clip(c.join("\n\n"),3800)},{name:"🛡️ Changed By",value:a?detailsUser(a):"Unknown"});await send(n,data,"server",e);}
 async function inviteCreate(i,data){const e=base("invites","Invite Created","📨 **Code:** "+i.code).addFields({name:"👤 Creator",value:i.inviter?detailsUser(i.inviter):"Unknown"},{name:"📍 Channel",value:i.channel?detailsChannel(i.channel):"Unknown"},{name:"🔢 Max Uses",value:String(i.maxUses??"Unlimited"),inline:true},{name:"⏳ Max Age",value:i.maxAge?String(i.maxAge)+"s":"Never",inline:true},{name:"🔗 Invite",value:"https://discord.gg/"+i.code});await send(i.guild,data,"invites",e);}
