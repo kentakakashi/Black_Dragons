@@ -149,12 +149,14 @@ async function ensure(guild,data){
 
   const c=cfg(data);
 
+  // IMPORTANT:
+  // A channel selected in /setup is authoritative. It does NOT have to be
+  // inside BLACK DRAGONS • LOGS and it does NOT have to use our default name.
+  // The old code rejected such channels and silently created replacements.
   let cat=null;
 
-  // Prefer the persisted category ID, but verify it belongs to this guild.
   if(c.categoryId){
     cat=guild.channels.cache.get(c.categoryId)||null;
-
     if(!cat){
       try{
         const fetched=await guild.channels.fetch(c.categoryId);
@@ -163,7 +165,13 @@ async function ensure(guild,data){
     }
   }
 
-  // Recover a stale/missing category by its canonical name.
+  // Only recover/create the logging category when we actually need a
+  // fallback channel. Configured channels themselves never depend on it.
+  const configuredEntries=Object.entries(CHANNELS).filter(
+    ([type])=>Boolean(c.channels[type])
+  );
+  const needsFallback=configuredEntries.some(([type])=>!c.channels[type]);
+
   if(!cat||cat.type!==ChannelType.GuildCategory){
     cat=guild.channels.cache.find(
       x=>x.guildId===guild.id &&
@@ -172,21 +180,12 @@ async function ensure(guild,data){
     )||null;
   }
 
-  if(!cat){
-    cat=await guild.channels.create({
-      name:"BLACK DRAGONS • LOGS",
-      type:ChannelType.GuildCategory
-    });
-  }
-
-  c.categoryId=cat.id;
-
   for(const [type,name] of Object.entries(CHANNELS)){
-    let ch=null;
     const configuredId=c.channels[type];
 
+    // A configured channel is the user's explicit choice.
     if(configuredId){
-      ch=guild.channels.cache.get(configuredId)||null;
+      let ch=guild.channels.cache.get(configuredId)||null;
 
       if(!ch){
         try{
@@ -195,37 +194,54 @@ async function ensure(guild,data){
         }catch{}
       }
 
-      if(ch && (
-        ch.type!==ChannelType.GuildText ||
-        ch.parentId!==cat.id ||
-        ch.name!==name
-      )){
-        ch=null;
+      if(ch && ch.type===ChannelType.GuildText && ch.guildId===guild.id){
+        // Keep it exactly where the administrator selected it.
+        continue;
       }
-    }
 
-    // Recover a stale/missing channel by its canonical name inside
-    // the BLACK DRAGONS • LOGS category.
-    if(!ch){
+      // The configured channel was deleted/invalid. Try to recover a channel
+      // with our canonical name anywhere in this guild before creating one.
       ch=guild.channels.cache.find(
         x=>x.guildId===guild.id &&
            x.type===ChannelType.GuildText &&
-           x.parentId===cat.id &&
            x.name===name
       )||null;
-    }
 
-    if(!ch){
-      ch=await guild.channels.create({
+      if(ch){
+        c.channels[type]=ch.id;
+        continue;
+      }
+
+      if(!cat){
+        cat=guild.channels.cache.find(
+          x=>x.guildId===guild.id &&
+             x.type===ChannelType.GuildCategory &&
+             x.name==="BLACK DRAGONS • LOGS"
+        )||null;
+      }
+
+      if(!cat){
+        cat=await guild.channels.create({
+          name:"BLACK DRAGONS • LOGS",
+          type:ChannelType.GuildCategory
+        });
+      }
+
+      const replacement=await guild.channels.create({
         name,
         type:ChannelType.GuildText,
         parent:cat.id,
         topic:(TITLES[type]||type)+" • BLACK DRAGONS detailed audit log"
       });
+      c.channels[type]=replacement.id;
+      continue;
     }
 
-    c.channels[type]=ch.id;
+    // Do NOT manufacture channels for settings the administrator has not
+    // selected. Unconfigured logging categories simply remain disabled.
   }
+
+  if(cat) c.categoryId=cat.id;
 
   return c;
 }
