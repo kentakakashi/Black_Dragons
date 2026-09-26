@@ -94,12 +94,12 @@ function headEditorEmbed(s) {
     .setTitle("🛠️ HEAD EMBED EDITOR")
     .setDescription(
       "Edit the **top BLACK DRAGONS • ALLIES embed**.\\n\\n" +
-      "📝 **Title:** " + (d.title || "Not set") + "\\n" +
-      "📄 **Description:** " + (d.description ? "Set" : "Not set") + "\\n" +
-      "🖼️ **Image:** " + (d.image?.url ? "Set" : "Not set") + "\\n" +
-      "🔳 **Thumbnail:** " + (d.thumbnail?.url ? "Set" : "Not set") + "\\n" +
+      "📝 **Title:** " + (d.title || "Not set") + "\n" +
+      "📄 **Description:** " + (d.description ? "Set" : "Not set") + "\n" +
+      "🖼️ **Image:** " + (d.image?.url ? "Set" : "Not set") + "\n" +
+      "🔳 **Thumbnail:** " + (d.thumbnail?.url ? "Set" : "Not set") + "\n" +
       "🧱 **Fields:** " + (d.fields?.length || 0) + "/25\\n" +
-      "🎨 **Color:** #" + c.toString(16).padStart(6, "0").toUpperCase() + "\\n\\n" +
+      "🎨 **Color:** #" + c.toString(16).padStart(6, "0").toUpperCase() + "\n\n" +
       "**Nothing is saved until SAVE is pressed.**"
     )
     .addFields(
