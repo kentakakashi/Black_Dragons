@@ -93,14 +93,12 @@ function headEditorEmbed(s) {
     .setColor(c)
     .setTitle("🛠️ HEAD EMBED EDITOR")
     .setDescription(
-      "Edit the **top BLACK DRAGONS • ALLIES embed**.\n\n" +
-      "📝 **Title:** " + (d.title || "Not set") + "\n" +
-      "📄 **Description:** " + (d.description ? "Set" : "Not set") + "\n" +
-      "🖼️ **Image:** " + (d.image?.url ? "Set" : "Not set") + "\n" +
-      "🔳 **Thumbnail:** " + (d.thumbnail?.url ? "Set" : "Not set") + "\n" +
-      "🧱 **Fields:** " + (d.fields?.length || 0) + "/25\n" +
-      "🎨 **Color:** #" + c.toString(16).padStart(6, "0").toUpperCase() + "\n\n" +
-      "**Nothing is saved until SAVE is pressed.**"
+      "The embed shown above is the **live preview**.\n\n" +
+      "✏️ **CONTENT** — title, URL and description\n" +
+      "🖼️ **MEDIA** — image and thumbnail\n" +
+      "🧱 **FIELDS** — edit field names and values\n" +
+      "⚙️ **More controls** — color, author, footer, timestamp\n\n" +
+      "**Changes stay in this editor until SAVE is pressed.**"
     )
     .addFields(
       { name: "AUTHOR", value: d.author?.name || "—", inline: true },
@@ -121,11 +119,7 @@ function headControls(s) {
     row(
       new ButtonBuilder().setCustomId("aeh:footer:" + s.id).setLabel("FOOTER").setEmoji("📌").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("aeh:time:" + s.id).setLabel("TIMESTAMP").setEmoji("⏱️").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aeh:clearimage:" + s.id).setLabel("CLEAR IMAGE").setStyle(ButtonStyle.Secondary).setDisabled(!s.draft.image?.url),
-      new ButtonBuilder().setCustomId("aeh:clearthumbnail:" + s.id).setLabel("CLEAR THUMBNAIL").setStyle(ButtonStyle.Secondary).setDisabled(!s.draft.thumbnail?.url),
-      new ButtonBuilder().setCustomId("aeh:save:" + s.id).setLabel("SAVE").setEmoji("💾").setStyle(ButtonStyle.Success)
-    ),
-    row(
+      new ButtonBuilder().setCustomId("aeh:save:" + s.id).setLabel("SAVE").setEmoji("💾").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId("aeh:cancel:" + s.id).setLabel("CANCEL").setEmoji("✖️").setStyle(ButtonStyle.Danger)
     )
   ];
@@ -298,7 +292,7 @@ function editorEmbed(s) {
       "🖼️ **Embed image:** " + (d.image?.url ? "Set" : "Not set") + "\n" +
       "🔳 **Thumbnail:** " + (d.thumbnail?.url ? "Set" : "Not set") + "\n" +
       "🌐 **Global header image:** " + (m.headerImageUrl ? "Set" : "Not set") + "\n📝 **Global intro:** " + (m.headerDescription ? "Set" : "Default") + "\n\n" +
-      "**Choose a section below. Nothing is saved until SAVE is pressed.**"
+      "The embed above is the **live preview**. Click a control to edit it.\n**Changes are temporary until SAVE.**"
     )
     .addFields(
       { name: "TITLE", value: d.title || "—", inline: true },
