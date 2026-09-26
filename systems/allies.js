@@ -428,7 +428,8 @@ function createHeaderEmbed(clans) {
   const s = getState();
   const data = normalizeHeaderEmbed(s.headerEmbed, clans.length);
 
-  const embed = embedBuilderFromData(data).setTimestamp();
+  // Respect the editor's timestamp setting. A null timestamp means no timestamp.
+  const embed = embedBuilderFromData(data);
 
   // Backward compatibility for existing Allies configurations.
   if (!s.headerEmbed) {
