@@ -111,15 +111,21 @@ function headEditorEmbed(s) {
 
 function headControls(s) {
   return [
-    row(headSectionMenu(s)),
     row(
-      new ButtonBuilder().setCustomId("aeh:clearimage:" + s.id).setLabel("CLEAR IMAGE").setStyle(ButtonStyle.Secondary).setDisabled(!s.draft.image?.url),
-      new ButtonBuilder().setCustomId("aeh:clearthumbnail:" + s.id).setLabel("CLEAR THUMBNAIL").setStyle(ButtonStyle.Secondary).setDisabled(!s.draft.thumbnail?.url),
-      new ButtonBuilder().setCustomId("aeh:clearauthor:" + s.id).setLabel("CLEAR AUTHOR").setStyle(ButtonStyle.Secondary).setDisabled(!s.draft.author?.name),
-      new ButtonBuilder().setCustomId("aeh:clearfooter:" + s.id).setLabel("CLEAR FOOTER").setStyle(ButtonStyle.Secondary).setDisabled(!s.draft.footer?.text)
+      new ButtonBuilder().setCustomId("aeh:content:" + s.id).setLabel("CONTENT").setEmoji("✏️").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("aeh:style:" + s.id).setLabel("COLOR").setEmoji("🎨").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("aeh:media:" + s.id).setLabel("MEDIA").setEmoji("🖼️").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("aeh:fields:" + s.id).setLabel("FIELDS").setEmoji("🧱").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("aeh:author:" + s.id).setLabel("AUTHOR").setEmoji("👤").setStyle(ButtonStyle.Secondary)
     ),
     row(
-      new ButtonBuilder().setCustomId("aeh:save:" + s.id).setLabel("SAVE").setEmoji("💾").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId("aeh:footer:" + s.id).setLabel("FOOTER").setEmoji("📌").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("aeh:time:" + s.id).setLabel("TIMESTAMP").setEmoji("⏱️").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("aeh:clearimage:" + s.id).setLabel("CLEAR IMAGE").setStyle(ButtonStyle.Secondary).setDisabled(!s.draft.image?.url),
+      new ButtonBuilder().setCustomId("aeh:clearthumbnail:" + s.id).setLabel("CLEAR THUMBNAIL").setStyle(ButtonStyle.Secondary).setDisabled(!s.draft.thumbnail?.url),
+      new ButtonBuilder().setCustomId("aeh:save:" + s.id).setLabel("SAVE").setEmoji("💾").setStyle(ButtonStyle.Success)
+    ),
+    row(
       new ButtonBuilder().setCustomId("aeh:cancel:" + s.id).setLabel("CANCEL").setEmoji("✖️").setStyle(ButtonStyle.Danger)
     )
   ];
@@ -127,7 +133,11 @@ function headControls(s) {
 
 async function renderHead(i, s) {
   saveSession(s);
-  await i.update({ embeds: [headEditorEmbed(s)], components: headControls(s), allowedMentions: { parse: [] } });
+  await i.update({
+    embeds: [...previewEmbeds(s), headEditorEmbed(s)],
+    components: headControls(s),
+    allowedMentions: { parse: [] }
+  });
 }
 
 function headFieldSelect(s) {
@@ -149,23 +159,30 @@ async function showHeadFields(i, s) {
   const e = new EmbedBuilder()
     .setColor(Number.isInteger(s.draft.color) ? s.draft.color : 0x7c3aed)
     .setTitle("🧱 HEAD EMBED FIELD MANAGER")
-    .setDescription("Manage up to **25 fields**. Selected: **" + (s.selectedField === null ? "None" : "#" + (s.selectedField + 1)) + "**");
-  (s.draft.fields || []).slice(0, 25).forEach((f, n) => e.addFields({
-    name: (n + 1) + ". " + (f.name || "Unnamed field"),
-    value: String(f.value || "—").slice(0, 1024),
-    inline: Boolean(f.inline)
-  }));
+    .setDescription(
+      "Select a field to edit it, or add a new one.\n\n" +
+      "**SAVE** keeps all changes. **CANCEL** discards them."
+    )
+    .addFields(
+      ...(s.draft.fields || []).slice(0, 25).map((f, n) => ({
+        name: (n + 1) + ". " + (f.name || "Unnamed field"),
+        value: String(f.value || "—").slice(0, 1024),
+        inline: Boolean(f.inline)
+      }))
+    );
   saveSession(s);
   await i.update({
-    embeds: [e],
+    embeds: [...previewEmbeds(s), e],
     components: [
       row(headFieldSelect(s)),
       row(
         new ButtonBuilder().setCustomId("aeh:addfield:" + s.id).setLabel("ADD FIELD").setEmoji("➕").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId("aeh:editfield:" + s.id).setLabel("EDIT").setEmoji("✏️").setStyle(ButtonStyle.Primary).setDisabled(s.selectedField === null),
         new ButtonBuilder().setCustomId("aeh:removefield:" + s.id).setLabel("DELETE").setEmoji("🗑️").setStyle(ButtonStyle.Danger).setDisabled(s.selectedField === null),
-        new ButtonBuilder().setCustomId("aeh:clearfields:" + s.id).setLabel("CLEAR").setEmoji("🧹").setStyle(ButtonStyle.Secondary).setDisabled(!s.draft.fields?.length),
         new ButtonBuilder().setCustomId("aeh:back:" + s.id).setLabel("BACK").setStyle(ButtonStyle.Secondary)
+      ),
+      row(
+        new ButtonBuilder().setCustomId("aeh:save:" + s.id).setLabel("SAVE").setEmoji("💾").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("aeh:cancel:" + s.id).setLabel("CANCEL").setEmoji("✖️").setStyle(ButtonStyle.Danger)
       )
     ],
     allowedMentions: { parse: [] }
@@ -196,6 +213,12 @@ async function showHeadSection(i, s, type) {
   } else if (type === "style") {
     x = makeModal("aehm:style:" + s.id, "🎨 Head Embed Color");
     x.addComponents(row(input("color", "HEX color, example 7C3AED", "#" + Number(d.color || 0x7c3aed).toString(16).padStart(6, "0"), TextInputStyle.Short, true, 7)));
+  } else if (type === "media") {
+    x = makeModal("aehm:media:" + s.id, "🖼️ Head Embed Media");
+    x.addComponents(
+      row(input("image", "Image URL / CLEAR", d.image?.url || "", TextInputStyle.Short, false, 1000)),
+      row(input("thumbnail", "Thumbnail URL / CLEAR", d.thumbnail?.url || "", TextInputStyle.Short, false, 1000))
+    );
   } else if (type === "image") {
     x = makeModal("aehm:image:" + s.id, "🖼️ Head Embed Image");
     x.addComponents(row(input("url", "Banner image URL / CLEAR", d.image?.url || "", TextInputStyle.Short, false, 1000)));
@@ -246,6 +269,19 @@ async function openHeadEditor(i) {
   });
 }
 
+function previewEmbeds(s) {
+  const out = [];
+
+  if (s.mode !== "head" && s.meta?.bannerUrl) {
+    out.push(new EmbedBuilder()
+      .setColor(0x111111)
+      .setImage(s.meta.bannerUrl));
+  }
+
+  out.push(allies.embedBuilderFromData(clone(s.draft)));
+  return out;
+}
+
 function editorEmbed(s) {
   const d = s.draft, m = s.meta;
   const c = Number.isInteger(d.color) ? d.color : 0x7c3aed;
@@ -273,18 +309,51 @@ function editorEmbed(s) {
 }
 
 function controls(s) {
-  return [
-    row(sectionMenu(s)),
-    row(
-      new ButtonBuilder().setCustomId("ae:save:" + s.id).setLabel("SAVE").setEmoji("💾").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId("ae:cancel:" + s.id).setLabel("CANCEL").setEmoji("✖️").setStyle(ButtonStyle.Danger)
-    )
-  ];
+  const rows = [];
+
+  if (s.mode !== "head") {
+    rows.push(row(
+      new ButtonBuilder().setCustomId("ae:identity:" + s.id).setLabel("INFO").setEmoji("🏷️").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("ae:basic:" + s.id).setLabel("CONTENT").setEmoji("✏️").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("ae:style:" + s.id).setLabel("COLOR").setEmoji("🎨").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("ae:media:" + s.id).setLabel("MEDIA").setEmoji("🖼️").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("ae:fields:" + s.id).setLabel("FIELDS").setEmoji("🧱").setStyle(ButtonStyle.Secondary)
+    ));
+    rows.push(row(
+      new ButtonBuilder().setCustomId("ae:author:" + s.id).setLabel("AUTHOR").setEmoji("👤").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("ae:footer:" + s.id).setLabel("FOOTER").setEmoji("📌").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("ae:global:" + s.id).setLabel("GLOBAL").setEmoji("🌐").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("ae:time:" + s.id).setLabel("TIMESTAMP").setEmoji("⏱️").setStyle(ButtonStyle.Secondary)
+    ));
+  } else {
+    rows.push(row(
+      new ButtonBuilder().setCustomId("aeh:content:" + s.id).setLabel("CONTENT").setEmoji("✏️").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("aeh:style:" + s.id).setLabel("COLOR").setEmoji("🎨").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("aeh:media:" + s.id).setLabel("MEDIA").setEmoji("🖼️").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("aeh:fields:" + s.id).setLabel("FIELDS").setEmoji("🧱").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("aeh:author:" + s.id).setLabel("AUTHOR").setEmoji("👤").setStyle(ButtonStyle.Secondary)
+    ));
+    rows.push(row(
+      new ButtonBuilder().setCustomId("aeh:footer:" + s.id).setLabel("FOOTER").setEmoji("📌").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("aeh:time:" + s.id).setLabel("TIMESTAMP").setEmoji("⏱️").setStyle(ButtonStyle.Secondary)
+    ));
+  }
+
+  rows.push(row(
+    new ButtonBuilder().setCustomId((s.mode === "head" ? "aeh:save:" : "ae:save:") + s.id).setLabel("SAVE").setEmoji("💾").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId((s.mode === "head" ? "aeh:cancel:" : "ae:cancel:") + s.id).setLabel("CANCEL").setEmoji("✖️").setStyle(ButtonStyle.Danger)
+  ));
+
+  return rows;
 }
 
 async function render(i, s) {
   saveSession(s);
-  await i.update({ embeds: [editorEmbed(s)], components: controls(s), allowedMentions: { parse: [] } });
+  await i.update({
+    embeds: [...previewEmbeds(s), editorEmbed(s)],
+    components: controls(s),
+    allowedMentions: { parse: [] }
+  });
 }
 
 async function showSection(i, s, type) {
@@ -372,14 +441,34 @@ async function showFields(i, s) {
   const e = new EmbedBuilder()
     .setColor(Number.isInteger(s.draft.color) ? s.draft.color : 0x7c3aed)
     .setTitle("🧱 FIELD MANAGER")
-    .setDescription("Manage up to **25 fields**. Selected: **" + (s.selectedField === null ? "None" : "#" + (s.selectedField + 1)) + "**");
-  (s.draft.fields || []).slice(0, 25).forEach((f, n) => e.addFields({
-    name: (n + 1) + ". " + (f.name || "Unnamed field"),
-    value: String(f.value || "—").slice(0, 1024),
-    inline: Boolean(f.inline)
-  }));
+    .setDescription(
+      "Select a field to edit it, or add a new one.\n\n" +
+      "**SAVE** keeps all changes. **CANCEL** discards them."
+    )
+    .addFields(
+      ...(s.draft.fields || []).slice(0, 25).map((f, n) => ({
+        name: (n + 1) + ". " + (f.name || "Unnamed field"),
+        value: String(f.value || "—").slice(0, 1024),
+        inline: Boolean(f.inline)
+      }))
+    );
   saveSession(s);
-  await i.update({ embeds: [e], components: fieldComponents(s), allowedMentions: { parse: [] } });
+  await i.update({
+    embeds: [...previewEmbeds(s), e],
+    components: [
+      row(fieldSelect(s)),
+      row(
+        new ButtonBuilder().setCustomId("ae:addfield:" + s.id).setLabel("ADD FIELD").setEmoji("➕").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("ae:removefield:" + s.id).setLabel("DELETE").setEmoji("🗑️").setStyle(ButtonStyle.Danger).setDisabled(s.selectedField === null),
+        new ButtonBuilder().setCustomId("ae:back:" + s.id).setLabel("BACK").setStyle(ButtonStyle.Secondary)
+      ),
+      row(
+        new ButtonBuilder().setCustomId("ae:save:" + s.id).setLabel("SAVE").setEmoji("💾").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId("ae:cancel:" + s.id).setLabel("CANCEL").setEmoji("✖️").setStyle(ButtonStyle.Danger)
+      )
+    ],
+    allowedMentions: { parse: [] }
+  });
 }
 
 async function fieldModal(i, s, index) {
@@ -481,6 +570,16 @@ async function handleButton(i) {
   saveSession(s);
   const action = i.customId.split(":")[1];
 
+  if (action === "identity" || action === "basic" || action === "style" || action === "media" || action === "author" || action === "footer" || action === "global" || action === "time") {
+    await showSection(i, s, action);
+    return true;
+  }
+
+  if (action === "fields") {
+    await showFields(i, s);
+    return true;
+  }
+
   if (action === "save") {
     const error = validate(s);
     if (error) {
@@ -576,6 +675,16 @@ async function handleHeadButton(i) {
   }
   saveSession(s);
   const action = p[1];
+
+  if (action === "content" || action === "style" || action === "media" || action === "author" || action === "footer" || action === "time") {
+    await showHeadSection(i, s, action === "content" ? "basic" : action);
+    return true;
+  }
+
+  if (action === "fields") {
+    await showHeadFields(i, s);
+    return true;
+  }
 
   if (action === "save") {
     await i.deferUpdate();
