@@ -16,6 +16,12 @@ function getConfig(data){
   cfg.clanMessages ||= {};
   return cfg;
 }
+function entries(data,type){
+  const store=data.blacklist?.[type==="clan"?"clans":"players"]||{};
+  return Object.values(store)
+    .filter(entry=>entry&&entry.active!==false)
+    .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+}
 function publicEmbed(entry,type){
   const isClan=type==="clan";
   const embed=new EmbedBuilder()
