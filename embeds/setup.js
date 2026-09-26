@@ -50,9 +50,30 @@ function currentValue(data, key) {
   };
   return key.startsWith("rank_role_") ? (r.rankRoleIds?.[key.replace("rank_role_","")] || null) : (map[key] || null);
 }
-function valueText(data, s) { const v=currentValue(data,s.key); return v ? (s.type==="role" ? "<@&"+v+">" : "<#"+v+">") : "Not configured"; }
+function valueText(data, s, guild) {
+  const v=currentValue(data,s.key);
+  if(!v) return "Not configured";
+
+  if(s.type==="role"){
+    const role=guild?.roles?.cache?.get(v);
+    return role ? role.toString() : "⚠️ Role unavailable ("+v+")";
+  }
+
+  const channel=guild?.channels?.cache?.get(v);
+  return channel ? "#"+channel.name : "⚠️ Channel unavailable ("+v+")";
+}
 function base() { return new EmbedBuilder().setColor(0x8B0000).setFooter({text:"Black Dragons • Setup Panel"}).setTimestamp(); }
-function createHomeEmbed(data, notice) { const configured=CATEGORIES.logging.settings.filter(s=>currentValue(data,s.key)).length; return base().setTitle("🐉 BLACK DRAGONS • BOT SETUP").setDescription((notice?notice+"\n\n":"")+"**Choose a category to configure.**\n\n🛠️ **Help Desk** — channels and request roles\n🏆 **Rank System** — registration, review, history and leaderboard\n🎖️ **Rank Roles** — Z through E role mapping\n📋 **Logging** — message, moderation, roles, VC, users, invites, server, channels, bot and general logs\n\n⚙️ Select settings one by one. Changes stay in a **draft**.\n💾 Press **SAVE ALL** once at the end to save everything together.\n\n📋 **Logging configured:** "+configured+"/10"); }
-function createCategoryEmbed(data, key, notice) { const c=CATEGORIES[key]; const lines=c.settings.map(s => (s.type==="role"?"🎭":"📺")+" **"+s.label+"** — "+valueText(data,s)).join("\n"); return base().setTitle(c.emoji+" BLACK DRAGONS • "+c.label.toUpperCase()).setDescription(c.description+"\n\n"+lines+"\n\n"+(notice?notice+"\n\n":"")+"Select a setting, choose its value, then continue. **Nothing is permanently saved until SAVE ALL.**"); }
-function createSettingEmbed(data, c, k) { const cat=CATEGORIES[c], s=getSetting(c,k); return base().setTitle(cat.emoji+" "+cat.label+" • "+s.label).setDescription("Current draft value: **"+valueText(data,s)+"**\n\nChoose the new "+(s.type==="role"?"role":"channel")+" below.\n\n💾 **Nothing is permanently saved until SAVE ALL.**"); }
+function createHomeEmbed(data, notice, guild) {
+  const configured=CATEGORIES.logging.settings.filter(s=>currentValue(data,s.key)).length;
+  return base().setTitle("🐉 BLACK DRAGONS • BOT SETUP").setDescription((notice?notice+"\n\n":"")+"**Choose a category to configure.**\n\n🛠️ **Help Desk** — channels and request roles\n🏆 **Rank System** — registration, review, history and leaderboard\n🎖️ **Rank Roles** — Z through E role mapping\n📋 **Logging** — message, moderation, roles, VC, users, invites, server, channels, bot and general logs\n\n⚙️ Select settings one by one. Changes stay in a **draft**.\n💾 Press **SAVE ALL** once at the end to save everything together.\n\n📋 **Logging configured:** "+configured+"/10");
+}
+function createCategoryEmbed(data, key, notice, guild) {
+  const c=CATEGORIES[key];
+  const lines=c.settings.map(s => (s.type==="role"?"🎭":"📺")+" **"+s.label+"** — "+valueText(data,s,guild)).join("\n");
+  return base().setTitle(c.emoji+" BLACK DRAGONS • "+c.label.toUpperCase()).setDescription(c.description+"\n\n"+lines+"\n\n"+(notice?notice+"\n\n":"")+"Select a setting, choose its value, then continue. **Nothing is permanently saved until SAVE ALL.**");
+}
+function createSettingEmbed(data, c, k, guild) {
+  const cat=CATEGORIES[c], s=getSetting(c,k);
+  return base().setTitle(cat.emoji+" "+cat.label+" • "+s.label).setDescription("Current draft value: **"+valueText(data,s,guild)+"**\n\nChoose the new "+(s.type==="role"?"role":"channel")+" below.\n\n💾 **Nothing is permanently saved until SAVE ALL.**");
+}
 module.exports = { CATEGORIES, CATEGORY_ORDER, getSetting, currentValue, createHomeEmbed, createCategoryEmbed, createSettingEmbed };
