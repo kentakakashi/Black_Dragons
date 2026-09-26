@@ -825,6 +825,16 @@ function reconcileData(
       ...cloudData.config.helpDesk
     },
 
+    logs: {
+      ...localData.config.logs,
+      ...cloudData.config.logs,
+
+      channels: {
+        ...localData.config.logs.channels,
+        ...cloudData.config.logs.channels
+      }
+    },
+
     rank: {
       ...localData.config.rank,
       ...cloudData.config.rank,
@@ -991,6 +1001,13 @@ async function saveFirestoreData(
     sanitize(data);
 
   await Promise.all([
+    /*
+     * SERVER CONFIG
+     *
+     * This document is the persistent source of truth for administrator
+     * configuration, including config.logs.channels. The exact channel IDs
+     * selected in /setup are stored here and loaded again on every startup.
+     */
     firestore
       .collection("config")
       .doc("server")
