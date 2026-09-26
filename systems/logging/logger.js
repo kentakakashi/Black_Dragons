@@ -18,7 +18,51 @@ function when(t=Date.now()){return "<t:"+Math.floor(t/1000)+":F> • <t:"+Math.f
 function link(m){return m?.guildId&&m?.channelId&&m?.id?"https://discord.com/channels/"+m.guildId+"/"+m.channelId+"/"+m.id:null;}
 function block(v){return "~~~\n"+clip(v,3300)+"\n~~~";}
 function base(type,title,desc){return new EmbedBuilder().setColor(COLORS[type]||COLORS.general).setTitle((TITLES[type]||TITLES.general)+" • "+title).setDescription(desc||"").setTimestamp();}
-async function send(guild,data,type,embed){const id=cfg(data).channels[type];if(!id)return false;try{const ch=await guild.channels.fetch(id);if(!ch?.isTextBased())return false;await ch.send({embeds:[embed]});return true;}catch(e){console.error("Logging "+type+" failed:",e);return false;}}
+async function send(guild,data,type,embed){
+  if(!guild?.channels) return false;
+  const c=cfg(data);
+  const expectedName=CHANNELS[type];
+  let ch=null;
+
+  try {
+    const configuredId=c.channels[type];
+
+    if(configuredId) {
+      ch=guild.channels.cache.get(configuredId)||null;
+
+      // A stale ID may belong to another guild. Never blindly fetch it.
+      if(!ch) {
+        try {
+          const fetched=await guild.channels.fetch(configuredId);
+          if(fetched?.guildId===guild.id) ch=fetched;
+        } catch {}
+      }
+    }
+
+    // Self-heal stale/missing IDs by finding the expected channel
+    // in this guild's logging category.
+    if(!ch && expectedName) {
+      const categoryId=c.categoryId;
+      ch=guild.channels.cache.find(channel =>
+        channel.guildId===guild.id &&
+        channel.type===ChannelType.GuildText &&
+        channel.name===expectedName &&
+        (!categoryId || channel.parentId===categoryId)
+      )||null;
+
+      if(ch) c.channels[type]=ch.id;
+    }
+
+    if(!ch?.isTextBased() || ch.guildId!==guild.id) return false;
+
+    await ch.send({embeds:[embed]});
+    return true;
+  } catch(e) {
+    // Logging must never create repeated unhandled errors itself.
+    console.error("Logging "+type+" failed:",e);
+    return false;
+  }
+}
 async function actor(guild,type,target){try{const a=await guild.fetchAuditLogs({type,limit:8});const e=a.entries.find(x=>Date.now()-x.createdTimestamp<10000&&(!target||String(x.target?.id||x.targetId)===String(target)));return e?.executor||null;}catch{return null;}}
 
 function diff(oldText,newText){
