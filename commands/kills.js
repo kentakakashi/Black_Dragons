@@ -12,7 +12,7 @@ module.exports = {
     .setName("kills")
     .setDescription("Administrator kill-stat management.")
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator.toString())
-    .addUserOption(o=>o.setName("member").setDescription("Ranked Discord member.").setRequired(true))
+    .addUserOption(o=>o.setName("member").setDescription("Discord member whose kill stats should be managed.").setRequired(true))
     .addStringOption(o=>o.setName("action").setDescription("Add, remove or set the kill total.").setRequired(true)
       .addChoices({name:"Add",value:"add"},{name:"Remove",value:"remove"},{name:"Update",value:"update"}))
     .addIntegerOption(o=>o.setName("amount").setDescription("Kills to add/remove, or the new total.").setMinValue(0).setMaxValue(1000000000).setRequired(true)),
@@ -26,14 +26,14 @@ module.exports = {
     const action=interaction.options.getString("action",true);
     const amount=interaction.options.getInteger("amount",true);
     const data=context.data;
-    const old=data.rankUsers?.[target.id];
+    const old=data.rankUsers?.[target.id] || null;
 
-    if(!old){
-      await interaction.reply({content:"❌ That member does not have an approved Black Dragons rank yet.",ephemeral:true});
-      return;
-    }
-
-    const previousKills=Math.max(0,Number(old.kills)||0);
+    /*
+     * Administrators may create a player's rank record directly.
+     * This is intentionally kept inside the existing rankUsers persistence
+     * structure instead of creating a second kill database.
+     */
+    const previousKills=Math.max(0,Number(old?.kills)||0);
     let newKills=previousKills;
     if(action==="add") newKills=previousKills+amount;
     if(action==="remove") newKills=Math.max(0,previousKills-amount);
@@ -56,11 +56,13 @@ module.exports = {
     }
 
     const timestamp=Date.now();
+    data.rankUsers ||= {};
     data.rankUsers[target.id]={
-      ...old,
+      ...(old || {}),
       discordId:target.id,
       kills:newKills,
       rank:nextRank.key,
+      verifiedAt:old?.verifiedAt || timestamp,
       updatedAt:timestamp,
       lastReviewerId:interaction.user.id
     };
