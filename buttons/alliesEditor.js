@@ -421,13 +421,13 @@ async function openPicker(i, mode) {
   const clans = allies.getState().clans;
 
   const options = [
-    {
+    ...(mode === "update" ? [{
       label: "HEAD EMBED",
       description: "Edit the top Allies embed and its banner image",
       value: "__head__",
       emoji: "🖼️"
-    },
-    ...clans.slice(0, 24).map(c => ({
+    }] : []),
+    ...clans.slice(0, mode === "update" ? 24 : 25).map(c => ({
       label: c.name.slice(0, 100),
       value: c.id,
       description: (c.leaderIds?.length || 0) + " leader(s)"
