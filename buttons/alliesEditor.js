@@ -686,9 +686,9 @@ async function handleSelect(i) {
       const type = i.values[0];
       if (type === "fields") {
         await showHeadFields(i, s);
-      } else {
-        await showHeadSection(i, s, type);
+        return true;
       }
+      await showHeadSection(i, s, type);
       return true;
     }
 
@@ -754,8 +754,13 @@ async function handleSelect(i) {
   }
 
   if (action === "fieldpick") {
-    s.selectedField = i.values[0] === "none" ? null : Number(i.values[0]);
-    await showFields(i, s);
+    if (i.values[0] === "none") {
+      s.selectedField = null;
+      await showFields(i, s);
+      return true;
+    }
+    s.selectedField = Number(i.values[0]);
+    await fieldModal(i, s, s.selectedField);
     return true;
   }
   return false;
