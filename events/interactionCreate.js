@@ -443,6 +443,20 @@ module.exports =
            * has already expired or its webhook is gone. Do not
            * attempt a second response in that case.
            */
+          try {
+            const logger = require("../systems/logging/logger");
+            if (interaction.guild && interaction.client?.appData) {
+              await logger.error(
+                interaction.guild,
+                interaction.client.appData,
+                error,
+                "Interaction " + (interaction.commandName || interaction.customId || "unknown")
+              );
+            }
+          } catch (loggingError) {
+            console.error("❌ Could not write interaction error to logs:", loggingError);
+          }
+
           if (
             error?.code === 10062 ||
             error?.code === 10015
