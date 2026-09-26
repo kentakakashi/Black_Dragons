@@ -23,6 +23,8 @@ const {
 const allies =
   require("../systems/allies");
 
+const logging = require("../systems/logging/logger");
+
 module.exports =
   function registerReady(
     client
@@ -41,6 +43,21 @@ module.exports =
         await registerCommandsWhenReady(
           client
         );
+
+        /*
+        ==========================================
+        LOGGING
+        ==========================================
+        Restore configured categorized log channels.
+        */
+        if (client.appData.config?.logs?.categoryId) {
+          try {
+            await logging.ensure(client.guilds.cache.first(), client.appData);
+            console.log("📋 Categorized logging configuration restored.");
+          } catch (error) {
+            console.error("❌ Could not restore logging channels:", error);
+          }
+        }
 
         /*
         ==========================================
