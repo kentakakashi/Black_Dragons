@@ -366,9 +366,9 @@ function defaultHeaderEmbed(clanCount = 0) {
     author: { name: 'BLACK DRAGONS • ALLIES' },
     title: '🤝 BLACK DRAGONS ALLIES',
     description:
-      '**ALLIES • DIFFERENT CLANS • ONE ALLIANCE**\\n\\n' +
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
-      'Our trusted allied clans are displayed below.\\n' +
+      '**ALLIES • DIFFERENT CLANS • ONE ALLIANCE**\n\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━\n' +
+      'Our trusted allied clans are displayed below.\n' +
       '━━━━━━━━━━━━━━━━━━━━━━━━━━',
     fields: [{
       name: '🛡️ ALLIANCE NETWORK',
@@ -415,8 +415,8 @@ function normalizeHeaderEmbed(raw, clanCount = 0) {
 
   e.fields = Array.isArray(e.fields)
     ? e.fields.slice(0, 25).map(field => ({
-        name: String(field.name || '\\u200b').slice(0, 256),
-        value: String(field.value || '\\u200b').slice(0, 1024),
+        name: String(field.name || '\u200b').slice(0, 256),
+        value: String(field.value || '\u200b').slice(0, 1024),
         inline: Boolean(field.inline)
       }))
     : [];
