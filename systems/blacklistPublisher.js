@@ -1,6 +1,21 @@
 const { EmbedBuilder, PermissionFlagsBits, ChannelType } = require("discord.js");
 const { saveData } = require("../utils/database");
 function isAdmin(i){return i.memberPermissions?.has(PermissionFlagsBits.Administrator);}
+function getConfig(data){
+  data.config ||= {};
+  data.config.blacklist ||= {};
+  data.config.blacklist.public ||= {
+    enabled:false,
+    playerChannelId:null,
+    clanChannelId:null,
+    playerMessages:{},
+    clanMessages:{}
+  };
+  const cfg=data.config.blacklist.public;
+  cfg.playerMessages ||= {};
+  cfg.clanMessages ||= {};
+  return cfg;
+}
 function publicEmbed(entry,type){
   const isClan=type==="clan";
   const embed=new EmbedBuilder()
