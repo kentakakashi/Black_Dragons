@@ -206,16 +206,16 @@ async function showHeadSection(i, s, type) {
     const a = d.author || {};
     x = makeModal("aehm:author:" + s.id, "👤 Head Embed Author");
     x.addComponents(
-      row(input("name", "Author name", a.name || "", TextInputStyle.Short, false, 256)),
-      row(input("url", "Author URL", a.url || "", TextInputStyle.Short, false, 1000)),
-      row(input("icon", "Author icon URL", a.icon_url || "", TextInputStyle.Short, false, 1000))
+      row(input("name", "Author name / CLEAR", a.name || "", TextInputStyle.Short, false, 256)),
+      row(input("url", "Author URL / CLEAR", a.url || "", TextInputStyle.Short, false, 1000)),
+      row(input("icon", "Author icon URL / CLEAR", a.icon_url || "", TextInputStyle.Short, false, 1000))
     );
   } else if (type === "footer") {
     const f = d.footer || {};
     x = makeModal("aehm:footer:" + s.id, "📌 Head Embed Footer");
     x.addComponents(
-      row(input("text", "Footer text", f.text || "", TextInputStyle.Short, false, 2048)),
-      row(input("icon", "Footer icon URL", f.icon_url || "", TextInputStyle.Short, false, 1000))
+      row(input("text", "Footer text / CLEAR", f.text || "", TextInputStyle.Short, false, 2048)),
+      row(input("icon", "Footer icon URL / CLEAR", f.icon_url || "", TextInputStyle.Short, false, 1000))
     );
   } else if (type === "time") {
     x = makeModal("aehm:time:" + s.id, "⏱️ Head Embed Timestamp");
@@ -855,21 +855,29 @@ async function handleModal(i) {
       const name = clean(i.fields.getTextInputValue("name"));
       const url = clean(i.fields.getTextInputValue("url"));
       const icon = clean(i.fields.getTextInputValue("icon"));
-      if (!validUrl(url) || !validUrl(icon)) {
-        await i.reply({ content: "❌ Author URLs must be full http:// or https:// URLs.", ephemeral: true });
-        return true;
+      if (/^clear$/i.test(name) || !name) {
+        s.draft.author = null;
+      } else {
+        if ((!/^clear$/i.test(url) && !validUrl(url)) || (!/^clear$/i.test(icon) && !validUrl(icon))) {
+          await i.reply({ content: "❌ Author URLs must be full http:// or https:// URLs, or CLEAR.", ephemeral: true });
+          return true;
+        }
+        s.draft.author = { name, url: /^clear$/i.test(url) ? null : (url || null), icon_url: /^clear$/i.test(icon) ? null : (icon || null) };
       }
-      s.draft.author = name ? { name, url: url || null, icon_url: icon || null } : null;
     }
 
     if (type === "footer") {
       const textValue = clean(i.fields.getTextInputValue("text"));
       const icon = clean(i.fields.getTextInputValue("icon"));
-      if (!validUrl(icon)) {
-        await i.reply({ content: "❌ Footer icon must be a full http:// or https:// URL.", ephemeral: true });
-        return true;
+      if (/^clear$/i.test(textValue) || !textValue) {
+        s.draft.footer = null;
+      } else {
+        if (!/^clear$/i.test(icon) && !validUrl(icon)) {
+          await i.reply({ content: "❌ Footer icon must be a full http:// or https:// URL, or CLEAR.", ephemeral: true });
+          return true;
+        }
+        s.draft.footer = { text: textValue, icon_url: /^clear$/i.test(icon) ? null : (icon || null) };
       }
-      s.draft.footer = textValue ? { text: textValue, icon_url: icon || null } : null;
     }
 
     if (type === "time") {
