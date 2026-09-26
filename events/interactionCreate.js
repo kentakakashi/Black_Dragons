@@ -229,6 +229,33 @@ module.exports =
             }
 
             /*
+             * Blacklist
+             */
+            if (
+              customId.startsWith(
+                'bl:'
+              )
+            ) {
+              const blacklist =
+                require(
+                  '../commands/blacklist'
+                );
+
+              if (
+                await blacklist.handleButton(
+                  interaction,
+                  {
+                    client,
+                    data:
+                      client.appData
+                  }
+                )
+              ) {
+                return;
+              }
+            }
+
+            /*
              * Leaderboard
              */
             if (
