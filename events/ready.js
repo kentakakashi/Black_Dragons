@@ -50,12 +50,25 @@ module.exports =
         ==========================================
         Restore configured categorized log channels.
         */
-        if (client.appData.config?.logs?.categoryId) {
-          try {
-            await logging.ensure(client.guilds.cache.first(), client.appData);
-            console.log("📋 Categorized logging configuration restored.");
-          } catch (error) {
-            console.error("❌ Could not restore logging channels:", error);
+        {
+          const guild = client.guilds.cache.first();
+          const logsConfig = client.appData.config?.logs;
+
+          if (guild && logsConfig && (
+            logsConfig.categoryId ||
+            Object.values(logsConfig.channels || {}).some(Boolean)
+          )) {
+            try {
+              // Re-resolve every persisted log channel on startup.
+              // This repairs stale IDs and, critically, persists the repaired
+              // IDs so the same problem cannot return on the next restart.
+              await logging.ensure(guild, client.appData);
+              await require("../utils/database").saveData(client.appData);
+
+              console.log("📋 Categorized logging configuration restored and persisted.");
+            } catch (error) {
+              console.error("❌ Could not restore logging channels:", error);
+            }
           }
         }
 
