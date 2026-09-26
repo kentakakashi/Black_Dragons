@@ -22,11 +22,24 @@ async function send(guild,data,type,embed){const id=cfg(data).channels[type];if(
 async function actor(guild,type,target){try{const a=await guild.fetchAuditLogs({type,limit:8});const e=a.entries.find(x=>Date.now()-x.createdTimestamp<10000&&(!target||String(x.target?.id||x.targetId)===String(target)));return e?.executor||null;}catch{return null;}}
 
 function diff(oldText,newText){
-  const a=String(oldText||""),b=String(newText||"");let p=0;while(p<a.length&&p<b.length&&a[p]===b[p])p++;
-  let s=0;while(s<a.length-p&&s<b.length-p&&a[a.length-1-s]===b[b.length-1-s])s++;
-  const ap=a.slice(0,p),as=s?a.slice(a.length-s):"",bp=b.slice(0,p),bs=s?b.slice(b.length-s):"";
-  const ar=a.slice(p,a.length-s||a.length),br=b.slice(p,b.length-s||b.length);
-  return {old:ap+"__"+ar+"__"+as,next:bp+"__"+br+"__"+bs};
+  const a=String(oldText||"").match(/\s+|[A-Za-z0-9_]+|[^A-Za-z0-9_\s]/g)||[];
+  const b=String(newText||"").match(/\s+|[A-Za-z0-9_]+|[^A-Za-z0-9_\s]/g)||[];
+  const n=a.length,m=b.length;
+  if(n*m>120000){return{old:"__"+clip(oldText,1800)+"__",next:"__"+clip(newText,1800)+"__"};}
+  const dp=Array.from({length:n+1},()=>new Uint16Array(m+1));
+  for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)dp[i][j]=a[i]===b[j]?dp[i+1][j+1]+1:Math.max(dp[i+1][j],dp[i][j+1]);
+  let i=0,j=0,oldOut=[],newOut=[];
+  while(i<n||j<m){
+    if(i<n&&j<m&&a[i]===b[j]){oldOut.push(a[i]);newOut.push(b[j]);i++;j++;continue;}
+    let ro=[],an=[];
+    while(i<n||j<m){
+      if(i<n&&j<m&&a[i]===b[j])break;
+      if(j<m&&(i===n||dp[i][j+1]>=dp[i+1][j]))an.push(b[j++]);else if(i<n)ro.push(a[i++]);
+    }
+    if(ro.length)oldOut.push("__"+ro.join("")+"__");
+    if(an.length)newOut.push("__"+an.join("")+"__");
+  }
+  return{old:oldOut.join("")||"*(empty)*",next:newOut.join("")||"*(empty)*"};
 }
 
 function attachmentText(m){const a=[...(m?.attachments?.values?.()||[])];return a.length?a.map(x=>x.name+": "+x.url).join("\n"):"None";}
