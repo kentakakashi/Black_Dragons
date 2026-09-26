@@ -108,19 +108,21 @@ function headEditorEmbed(s) {
 }
 
 function headControls(s) {
+  const menu = headSectionMenu(s);
+
   return [
+    row(menu),
     row(
-      new ButtonBuilder().setCustomId("aeh:content:" + s.id).setLabel("CONTENT").setEmoji("✏️").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId("aeh:style:" + s.id).setLabel("COLOR").setEmoji("🎨").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aeh:media:" + s.id).setLabel("MEDIA").setEmoji("🖼️").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aeh:fields:" + s.id).setLabel("FIELDS").setEmoji("🧱").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aeh:author:" + s.id).setLabel("AUTHOR").setEmoji("👤").setStyle(ButtonStyle.Secondary)
-    ),
-    row(
-      new ButtonBuilder().setCustomId("aeh:footer:" + s.id).setLabel("FOOTER").setEmoji("📌").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aeh:time:" + s.id).setLabel("TIMESTAMP").setEmoji("⏱️").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aeh:save:" + s.id).setLabel("SAVE").setEmoji("💾").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId("aeh:cancel:" + s.id).setLabel("CANCEL").setEmoji("✖️").setStyle(ButtonStyle.Danger)
+      new ButtonBuilder()
+        .setCustomId("aeh:save:" + s.id)
+        .setLabel("SAVE")
+        .setEmoji("💾")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId("aeh:cancel:" + s.id)
+        .setLabel("CANCEL")
+        .setEmoji("✖️")
+        .setStyle(ButtonStyle.Danger)
     )
   ];
 }
@@ -303,42 +305,23 @@ function editorEmbed(s) {
 }
 
 function controls(s) {
-  const rows = [];
+  const menu = sectionMenu(s);
 
-  if (s.mode !== "head") {
-    rows.push(row(
-      new ButtonBuilder().setCustomId("ae:identity:" + s.id).setLabel("INFO").setEmoji("🏷️").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("ae:basic:" + s.id).setLabel("CONTENT").setEmoji("✏️").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId("ae:style:" + s.id).setLabel("COLOR").setEmoji("🎨").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("ae:media:" + s.id).setLabel("MEDIA").setEmoji("🖼️").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("ae:fields:" + s.id).setLabel("FIELDS").setEmoji("🧱").setStyle(ButtonStyle.Secondary)
-    ));
-    rows.push(row(
-      new ButtonBuilder().setCustomId("ae:author:" + s.id).setLabel("AUTHOR").setEmoji("👤").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("ae:footer:" + s.id).setLabel("FOOTER").setEmoji("📌").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("ae:global:" + s.id).setLabel("GLOBAL").setEmoji("🌐").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("ae:time:" + s.id).setLabel("TIMESTAMP").setEmoji("⏱️").setStyle(ButtonStyle.Secondary)
-    ));
-  } else {
-    rows.push(row(
-      new ButtonBuilder().setCustomId("aeh:content:" + s.id).setLabel("CONTENT").setEmoji("✏️").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId("aeh:style:" + s.id).setLabel("COLOR").setEmoji("🎨").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aeh:media:" + s.id).setLabel("MEDIA").setEmoji("🖼️").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aeh:fields:" + s.id).setLabel("FIELDS").setEmoji("🧱").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aeh:author:" + s.id).setLabel("AUTHOR").setEmoji("👤").setStyle(ButtonStyle.Secondary)
-    ));
-    rows.push(row(
-      new ButtonBuilder().setCustomId("aeh:footer:" + s.id).setLabel("FOOTER").setEmoji("📌").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("aeh:time:" + s.id).setLabel("TIMESTAMP").setEmoji("⏱️").setStyle(ButtonStyle.Secondary)
-    ));
-  }
-
-  rows.push(row(
-    new ButtonBuilder().setCustomId((s.mode === "head" ? "aeh:save:" : "ae:save:") + s.id).setLabel("SAVE").setEmoji("💾").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId((s.mode === "head" ? "aeh:cancel:" : "ae:cancel:") + s.id).setLabel("CANCEL").setEmoji("✖️").setStyle(ButtonStyle.Danger)
-  ));
-
-  return rows;
+  return [
+    row(menu),
+    row(
+      new ButtonBuilder()
+        .setCustomId("ae:save:" + s.id)
+        .setLabel("SAVE")
+        .setEmoji("💾")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId("ae:cancel:" + s.id)
+        .setLabel("CANCEL")
+        .setEmoji("✖️")
+        .setStyle(ButtonStyle.Danger)
+    )
+  ];
 }
 
 async function render(i, s) {
