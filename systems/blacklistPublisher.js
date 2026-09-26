@@ -1,45 +1,37 @@
 const { EmbedBuilder, PermissionFlagsBits, ChannelType } = require("discord.js");
 const { saveData } = require("../utils/database");
-const PLAYER_NAMES = ["blacklisted-players","blacklisted-player","bl-player"];
-const CLAN_NAMES = ["blacklisted-clans","blacklisted-clan","bl-clan"];
 function isAdmin(i){return i.memberPermissions?.has(PermissionFlagsBits.Administrator);}
-function normalizeName(name){return String(name||"").toLowerCase().replace(/[^a-z0-9-]/g,"");}
-function getConfig(data){
-  data.config ||= {}; data.config.blacklist ||= {};
-  data.config.blacklist.public ||= {enabled:false,playerChannelId:null,clanChannelId:null,playerMessages:{},clanMessages:{}};
-  const p=data.config.blacklist.public;
-  p.enabled=Boolean(p.enabled); p.playerChannelId ||= null; p.clanChannelId ||= null; p.playerMessages ||= {}; p.clanMessages ||= {};
-  return p;
-}
-function entries(data,type){
-  const store=type==="clan"?data.blacklist?.clans||{}:data.blacklist?.players||{};
-  return Object.values(store).filter(x=>x&&x.active!==false).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
-}
-function publicEmbed(entry,type){
-  const clan=type==="clan";
-  const e=new EmbedBuilder().setColor(0x8b0000)
-    .setTitle(clan?"🚫 BLACK DRAGONS • BLACKLISTED CLAN":"🚫 BLACK DRAGONS • BLACKLISTED PLAYER")
-    .setDescription(clan?"This clan is currently blacklisted by **BLACK DRAGONS**.":"This Roblox player is currently blacklisted by **BLACK DRAGONS**.")
-    .addFields({name:clan?"🏴 Clan name":"👤 Roblox username",value:"**"+String(entry.name||"Unknown").slice(0,100)+"**",inline:false});
-  if(entry.externalId)e.addFields({name:clan?"🆔 Clan ID":"🆔 Roblox ID",value:"`"+String(entry.externalId).slice(0,40)+"`",inline:true});
-  if(entry.discordId)e.addFields({name:"💬 Discord",value:"<@"+entry.discordId+">",inline:true});
-  if(entry.notes)e.addFields({name:"📝 Notes",value:String(entry.notes).slice(0,1000),inline:false});
-  e.addFields({name:"📅 Added",value:"<t:"+Math.floor(Number(entry.createdAt||Date.now())/1000)+":F>",inline:false});
-  if(entry.profileImageUrl)e.setImage(entry.profileImageUrl);
-  return e.setFooter({text:"BLACK DRAGONS • Public Blacklist"});
-}
-async function findChannel(guild,type,configuredId){
-  if(configuredId){try{const c=await guild.channels.fetch(String(configuredId));if(c&&c.guildId===guild.id&&c.type===ChannelType.GuildText)return c;}catch{}}
-  const names=type==="clan"?CLAN_NAMES:PLAYER_NAMES; const wanted=new Set(names.map(normalizeName));
-  return guild.channels.cache.find(c=>c.type===ChannelType.GuildText&&wanted.has(normalizeName(c.name)))||null;
-}
 async function syncType(guild,data,type){
   const cfg=getConfig(data);
   const channelKey=type==="clan"?"clanChannelId":"playerChannelId";
   const messageKey=type==="clan"?"clanMessages":"playerMessages";
-  const channel=await findChannel(guild,type,cfg[channelKey]);
-  if(!channel)throw new Error(type==="clan"?"Could not find the clan blacklist channel. Expected blacklisted-clans (or bl-clan).":"Could not find the player blacklist channel. Expected blacklisted-players (or bl-player).");
-  cfg[channelKey]=channel.id;
+  const configuredId=cfg[channelKey];
+  if(!configuredId){
+    throw new Error(
+      type==="clan"
+        ? "The Blacklist → Blacklisted Clans Channel is not configured. Run /setup and SAVE ALL first."
+        : "The Blacklist → Blacklisted Players Channel is not configured. Run /setup and SAVE ALL first."
+    );
+  }
+
+  let channel;
+  try{
+    channel=await guild.channels.fetch(String(configuredId));
+  }catch{
+    throw new Error(
+      type==="clan"
+        ? "The configured Blacklisted Clans channel could not be found. Reconfigure it in /setup."
+        : "The configured Blacklisted Players channel could not be found. Reconfigure it in /setup."
+    );
+  }
+
+  if(!channel || channel.guildId!==guild.id || channel.type!==ChannelType.GuildText){
+    throw new Error(
+      type==="clan"
+        ? "The configured Blacklisted Clans channel is invalid. Reconfigure it in /setup."
+        : "The configured Blacklisted Players channel is invalid. Reconfigure it in /setup."
+    );
+  }
   const active=entries(data,type), wanted=new Set(active.map(x=>x.id)), messages=cfg[messageKey];
   for(const [entryId,messageId] of Object.entries(messages)){
     if(wanted.has(entryId))continue;
