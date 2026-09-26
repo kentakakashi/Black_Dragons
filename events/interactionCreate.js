@@ -390,6 +390,33 @@ module.exports =
             }
 
             /*
+             * Blacklist modals
+             */
+            if (
+              customId.startsWith(
+                'blrm:'
+              )
+            ) {
+              const blacklist =
+                require(
+                  '../commands/blacklist'
+                );
+
+              if (
+                await blacklist.handleModal(
+                  interaction,
+                  {
+                    client,
+                    data:
+                      client.appData
+                  }
+                )
+              ) {
+                return;
+              }
+            }
+
+            /*
              * Help Desk modals
              */
             if (
