@@ -34,19 +34,24 @@ const CATEGORIES = {
     { key: "log_channels", label: "Channel Logs", type: "channel" },
     { key: "log_bot", label: "Bot Logs", type: "channel" },
     { key: "log_general", label: "General Logs", type: "channel" }
+  ]},
+  blacklist: { label: "Blacklist", emoji: "🚫", description: "Public channels for blacklisted players and clans.", settings: [
+    { key: "blacklist_players", label: "Blacklisted Players Channel", type: "channel" },
+    { key: "blacklist_clans", label: "Blacklisted Clans Channel", type: "channel" }
   ]}
 };
-const CATEGORY_ORDER = ["helpdesk", "rank_channels", "rank_roles", "logging"];
+const CATEGORY_ORDER = ["helpdesk", "rank_channels", "rank_roles", "logging", "blacklist"];
 function getSetting(c, k) { return CATEGORIES[c]?.settings.find(s => s.key === k) || null; }
 function currentValue(data, key) {
-  const h = data.config.helpDesk, r = data.config.rank, logs = data.config.logs?.channels || {};
+  const h = data.config.helpDesk, r = data.config.rank, logs = data.config.logs?.channels || {}, bl = data.config.blacklist?.public || {};
   const map = {
     helpdesk_channel:h.channelId, war_role:h.warRoleId, backup_role:h.backupRoleId,
     rank_registration:r.registrationChannelId, rank_review:r.reviewChannelId, rank_history:r.historyChannelId,
     leaderboard_channel:r.leaderboardChannelId,
     log_message:logs.message, log_moderation:logs.moderation, log_roles:logs.roles, log_voice:logs.voice,
     log_users:logs.users, log_invites:logs.invites, log_server:logs.server, log_channels:logs.channels,
-    log_bot:logs.bot, log_general:logs.general
+    log_bot:logs.bot, log_general:logs.general,
+    blacklist_players:bl.playerChannelId, blacklist_clans:bl.clanChannelId
   };
   return key.startsWith("rank_role_") ? (r.rankRoleIds?.[key.replace("rank_role_","")] || null) : (map[key] || null);
 }
@@ -65,7 +70,9 @@ function valueText(data, s, guild) {
 function base() { return new EmbedBuilder().setColor(0x8B0000).setFooter({text:"Black Dragons • Setup Panel"}).setTimestamp(); }
 function createHomeEmbed(data, notice, guild) {
   const configured=CATEGORIES.logging.settings.filter(s=>currentValue(data,s.key)).length;
-  return base().setTitle("🐉 BLACK DRAGONS • BOT SETUP").setDescription((notice?notice+"\n\n":"")+"**Choose a category to configure.**\n\n🛠️ **Help Desk** — channels and request roles\n🏆 **Rank System** — registration, review, history and leaderboard\n🎖️ **Rank Roles** — Z through E role mapping\n📋 **Logging** — message, moderation, roles, VC, users, invites, server, channels, bot and general logs\n\n⚙️ Select settings one by one. Changes stay in a **draft**.\n💾 Press **SAVE ALL** once at the end to save everything together.\n\n📋 **Logging configured:** "+configured+"/10");
+  return base().setTitle("🐉 BLACK DRAGONS • BOT SETUP").setDescription((notice?notice+"\n\n":"")+"**Choose a category to configure.**\n\n🛠️ **Help Desk** — channels and request roles\n🏆 **Rank System** — registration, review, history and leaderboard\n🎖️ **Rank Roles** — Z through E role mapping\n📋 **Logging** — message, moderation, roles, VC, users, invites, server, channels, bot and general logs
+🚫 **Blacklist** — public player and clan blacklist channels\n\n⚙️ Select settings one by one. Changes stay in a **draft**.\n💾 Press **SAVE ALL** once at the end to save everything together.\n\n📋 **Logging configured:** "+configured+"/10
+🚫 **Blacklist channels:** "+(currentValue(data,"blacklist_players")?"1":"0")+"/2);
 }
 function createCategoryEmbed(data, key, notice, guild) {
   const c=CATEGORIES[key];
