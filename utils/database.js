@@ -27,6 +27,22 @@ const defaultData = {
       backupRoleId: null
     },
 
+    logs: {
+      categoryId: null,
+      channels: {
+        message: null,
+        moderation: null,
+        roles: null,
+        voice: null,
+        users: null,
+        invites: null,
+        server: null,
+        channels: null,
+        bot: null,
+        general: null
+      }
+    },
+
     rank: {
       registrationChannelId: null,
       reviewChannelId: null,
@@ -170,6 +186,15 @@ function normalizeData(saved = {}) {
   data.dashboardMessageId =
     saved.dashboardMessageId ||
     null;
+
+  data.config.logs = {
+    ...data.config.logs,
+    ...(saved.config?.logs || {}),
+    channels: {
+      ...data.config.logs.channels,
+      ...(saved.config?.logs?.channels || {})
+    }
+  };
 
   data.config.helpDesk = {
     ...data.config.helpDesk,
