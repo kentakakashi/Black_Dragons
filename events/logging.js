@@ -5,7 +5,8 @@ function simpleEmbed(color,title,description,fields=[]) {
   return new EmbedBuilder().setColor(color).setTitle(title).setDescription(description).addFields(fields).setTimestamp();
 }
 
-module.exports = function registerLogging(client) {\n  const inviteUses = new Map();
+module.exports = function registerLogging(client) {
+  const inviteUses = new Map();
   const snapshotInvites = async guild => { try { const invites = await guild.invites.fetch(); inviteUses.set(guild.id,new Map(invites.map(i=>[i.code,i.uses||0]))); } catch {} };
 
   const run = (name, fn) => fn().catch(e => console.error("❌ Logging "+name+" failed:", e));
@@ -77,7 +78,9 @@ module.exports = function registerLogging(client) {\n  const inviteUses = new Ma
   client.on("inviteCreate", i => { run("inviteCreate",()=>log.inviteCreate(i,client.appData)); const map=inviteUses.get(i.guild.id)||new Map(); map.set(i.code,i.uses||0); inviteUses.set(i.guild.id,map); });
   client.on("inviteDelete", i => { run("inviteDelete",()=>log.inviteDelete(i,client.appData)); const map=inviteUses.get(i.guild.id)||new Map(); map.delete(i.code); inviteUses.set(i.guild.id,map); });
 
-  client.once("ready", () => { for (const guild of client.guilds.cache.values()) snapshotInvites(guild); });\n\n  client.on("interactionCreate", i => {
+  client.once("ready", () => { for (const guild of client.guilds.cache.values()) snapshotInvites(guild); });
+
+  client.on("interactionCreate", i => {
     if (i.isChatInputCommand()) run("command",()=>log.command(i,client.appData));
   });
   client.on("userUpdate", (o,n) => {
