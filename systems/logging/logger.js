@@ -145,7 +145,88 @@ async function thread(action,t,data){if(!t.guild)return;const ty=action==="creat
 async function command(i,data){if(!i.guild)return;const e=base("bot","Slash Command Used","⚙️ **/"+i.commandName+"**").addFields({name:"👤 User",value:detailsUser(i.user)},{name:"📍 Channel",value:detailsChannel(i.channel)},{name:"🕐 Time",value:when()},{name:"🆔 Interaction ID",value:i.id});await send(i.guild,data,"bot",e);}
 async function error(guild,data,err,context){if(!guild)return;const e=base("bot","Bot Error","⚠️ **Context:** "+context).addFields({name:"🕐 Time",value:when()},{name:"Error",value:block(err?.stack||err?.message||err)});await send(guild,data,"bot",e);}
 async function ensure(guild,data){
-  const c=cfg(data);let cat=c.categoryId?guild.channels.cache.get(c.categoryId):null;if(!cat||cat.type!==ChannelType.GuildCategory)cat=guild.channels.cache.find(x=>x.type===ChannelType.GuildCategory&&x.name==="BLACK DRAGONS • LOGS");if(!cat)cat=await guild.channels.create({name:"BLACK DRAGONS • LOGS",type:ChannelType.GuildCategory});c.categoryId=cat.id;
-  for(const [type,name] of Object.entries(CHANNELS)){let ch=c.channels[type]?guild.channels.cache.get(c.channels[type]):null;if(!ch)ch=guild.channels.cache.find(x=>x.parentId===cat.id&&x.name===name);if(!ch)ch=await guild.channels.create({name,type:ChannelType.GuildText,parent:cat.id,topic:(TITLES[type]||type)+" • BLACK DRAGONS detailed audit log"});c.channels[type]=ch.id;}return c;
+  if(!guild?.channels) throw new Error("Guild channels are unavailable.");
+
+  const c=cfg(data);
+
+  let cat=null;
+
+  // Prefer the persisted category ID, but verify it belongs to this guild.
+  if(c.categoryId){
+    cat=guild.channels.cache.get(c.categoryId)||null;
+
+    if(!cat){
+      try{
+        const fetched=await guild.channels.fetch(c.categoryId);
+        if(fetched?.guildId===guild.id) cat=fetched;
+      }catch{}
+    }
+  }
+
+  // Recover a stale/missing category by its canonical name.
+  if(!cat||cat.type!==ChannelType.GuildCategory){
+    cat=guild.channels.cache.find(
+      x=>x.guildId===guild.id &&
+         x.type===ChannelType.GuildCategory &&
+         x.name==="BLACK DRAGONS • LOGS"
+    )||null;
+  }
+
+  if(!cat){
+    cat=await guild.channels.create({
+      name:"BLACK DRAGONS • LOGS",
+      type:ChannelType.GuildCategory
+    });
+  }
+
+  c.categoryId=cat.id;
+
+  for(const [type,name] of Object.entries(CHANNELS)){
+    let ch=null;
+    const configuredId=c.channels[type];
+
+    if(configuredId){
+      ch=guild.channels.cache.get(configuredId)||null;
+
+      if(!ch){
+        try{
+          const fetched=await guild.channels.fetch(configuredId);
+          if(fetched?.guildId===guild.id) ch=fetched;
+        }catch{}
+      }
+
+      if(ch && (
+        ch.type!==ChannelType.GuildText ||
+        ch.parentId!==cat.id ||
+        ch.name!==name
+      )){
+        ch=null;
+      }
+    }
+
+    // Recover a stale/missing channel by its canonical name inside
+    // the BLACK DRAGONS • LOGS category.
+    if(!ch){
+      ch=guild.channels.cache.find(
+        x=>x.guildId===guild.id &&
+           x.type===ChannelType.GuildText &&
+           x.parentId===cat.id &&
+           x.name===name
+      )||null;
+    }
+
+    if(!ch){
+      ch=await guild.channels.create({
+        name,
+        type:ChannelType.GuildText,
+        parent:cat.id,
+        topic:(TITLES[type]||type)+" • BLACK DRAGONS detailed audit log"
+      });
+    }
+
+    c.channels[type]=ch.id;
+  }
+
+  return c;
 }
 module.exports={CHANNELS,TITLES,ensure,send,messageCreate,messageUpdate,messageDelete,purgeLog,markPurge,wasPurged,memberAdd,memberRemove,memberUpdate,ban,roleCreate,roleDelete,roleUpdate,voice,channelCreate,channelDelete,channelUpdate,guildUpdate,inviteCreate,inviteDelete,inviteUse,thread,command,error};
