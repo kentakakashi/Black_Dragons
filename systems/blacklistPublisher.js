@@ -1,6 +1,24 @@
 const { EmbedBuilder, PermissionFlagsBits, ChannelType } = require("discord.js");
 const { saveData } = require("../utils/database");
 function isAdmin(i){return i.memberPermissions?.has(PermissionFlagsBits.Administrator);}
+function publicEmbed(entry,type){
+  const isClan=type==="clan";
+  const embed=new EmbedBuilder()
+    .setColor(0x8b0000)
+    .setTitle("🚫 "+(isClan?"BLACK DRAGONS • CLAN BLACKLIST":"BLACK DRAGONS • PLAYER BLACKLIST"))
+    .setDescription((isClan?"🏴 **Clan:** ":"👤 **Roblox username:** ")+String(entry.name||"Unknown"))
+    .addFields(
+      {name:isClan?"🏴 Clan ID":"🆔 Roblox ID",value:entry.externalId?`\`${entry.externalId}\``:"Not provided",inline:true},
+      {name:"💬 Discord",value:entry.discordId?"<@"+entry.discordId+">":"Not provided",inline:true},
+      {name:"📅 Added",value:`<t:${Math.floor((entry.createdAt||Date.now())/1000)}:F>`,inline:false}
+    )
+    .setFooter({text:"BLACK DRAGONS • Public Blacklist"})
+    .setTimestamp();
+  if(entry.notes)embed.addFields({name:"📝 Notes",value:String(entry.notes).slice(0,1024),inline:false});
+  if(entry.profileImageUrl)embed.setImage(entry.profileImageUrl);
+  return embed;
+}
+
 async function syncType(guild,data,type){
   const cfg=getConfig(data);
   const channelKey=type==="clan"?"clanChannelId":"playerChannelId";
