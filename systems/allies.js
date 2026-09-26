@@ -360,36 +360,80 @@ function embedBuilderFromData(data) {
   return b;
 }
 
-function createHeaderEmbed(clans) {
-  const embed = new EmbedBuilder()
-    .setColor(0x7c3aed)
-    .setAuthor({
-      name: 'BLACK DRAGONS • ALLIES'
-    })
-    .setTitle('🤝 BLACK DRAGONS ALLIES')
-    .setDescription(
-      getState().headerDescription ||
-      '**ALLIES • DIFFERENT CLANS • ONE ALLIANCE**\n\n' +
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━\n' +
-      'Our trusted allied clans are displayed below.\n' +
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━'
-    )
-    .addFields({
+function defaultHeaderEmbed(clanCount = 0) {
+  return {
+    color: 0x7c3aed,
+    author: { name: 'BLACK DRAGONS • ALLIES' },
+    title: '🤝 BLACK DRAGONS ALLIES',
+    description:
+      '**ALLIES • DIFFERENT CLANS • ONE ALLIANCE**\\n\\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━\\n' +
+      'Our trusted allied clans are displayed below.\\n' +
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━',
+    fields: [{
       name: '🛡️ ALLIANCE NETWORK',
       value:
-        `**${clans.length}** allied clan` +
-        `${clans.length === 1 ? '' : 's'} currently recognized by **BLACK DRAGONS**.`,
+        `**${clanCount}** allied clan` +
+        `${clanCount === 1 ? '' : 's'} currently recognized by **BLACK DRAGONS**.`,
       inline: false
-    })
-    .setFooter({
-      text: 'BLACK DRAGONS • ALLIES'
-    })
-    .setTimestamp();
+    }],
+    footer: { text: 'BLACK DRAGONS • ALLIES' },
+    timestamp: null,
+    url: null,
+    thumbnail: null,
+    image: null
+  };
+}
 
-  const headerImageUrl = getState().headerImageUrl;
+function normalizeHeaderEmbed(raw, clanCount = 0) {
+  const base = defaultHeaderEmbed(clanCount);
+  const e = raw && typeof raw === 'object' ? clone(raw) : base;
 
-  if (headerImageUrl && validUrl(headerImageUrl)) {
-    embed.setImage(headerImageUrl);
+  e.color = Number.isInteger(e.color) ? e.color : base.color;
+  e.title = typeof e.title === 'string' ? e.title : '';
+  e.description = typeof e.description === 'string' ? e.description : '';
+  e.url = e.url || null;
+
+  e.author = e.author?.name
+    ? {
+        name: String(e.author.name),
+        url: e.author.url || null,
+        icon_url: e.author.icon_url || null
+      }
+    : null;
+
+  e.footer = e.footer?.text
+    ? {
+        text: String(e.footer.text),
+        icon_url: e.footer.icon_url || null
+      }
+    : null;
+
+  e.thumbnail = e.thumbnail?.url ? { url: e.thumbnail.url } : null;
+  e.image = e.image?.url ? { url: e.image.url } : null;
+  e.timestamp = e.timestamp || null;
+
+  e.fields = Array.isArray(e.fields)
+    ? e.fields.slice(0, 25).map(field => ({
+        name: String(field.name || '\\u200b').slice(0, 256),
+        value: String(field.value || '\\u200b').slice(0, 1024),
+        inline: Boolean(field.inline)
+      }))
+    : [];
+
+  return e;
+}
+
+function createHeaderEmbed(clans) {
+  const s = getState();
+  const data = normalizeHeaderEmbed(s.headerEmbed, clans.length);
+
+  const embed = embedBuilderFromData(data).setTimestamp();
+
+  // Backward compatibility for existing Allies configurations.
+  if (!s.headerEmbed) {
+    if (s.headerDescription) embed.setDescription(s.headerDescription);
+    if (s.headerImageUrl && validUrl(s.headerImageUrl)) embed.setImage(s.headerImageUrl);
   }
 
   return embed;
@@ -495,6 +539,14 @@ async function initialize() {
       local.headerDescription ??
       null,
 
+    headerEmbed:
+      normalizeHeaderEmbed(
+        cloud.headerEmbed ??
+        local.headerEmbed ??
+        null,
+        (cloud.clans || local.clans || []).length
+      ),
+
     clans: mergeClans(
       local.clans || [],
       cloud.clans || []
@@ -563,6 +615,7 @@ async function save() {
         messageId: state.messageId || null,
         headerImageUrl: state.headerImageUrl || null,
         headerDescription: state.headerDescription || null,
+        headerEmbed: state.headerEmbed || null,
         clans: state.clans,
         updatedAt: now()
       },
@@ -590,6 +643,27 @@ function findClan(query) {
       String(c.id).toLowerCase() === v ||
       String(c.name).toLowerCase() === v
   );
+}
+
+async function updateHeader(client, headerEmbed) {
+  await initialize();
+
+  const normalized = normalizeHeaderEmbed(
+    headerEmbed,
+    state.clans.length
+  );
+
+  state.headerEmbed = normalized;
+  state.headerDescription = normalized.description || null;
+  state.headerImageUrl = normalized.image?.url || null;
+
+  await save();
+
+  const r = await updateMessage(client);
+
+  await save();
+
+  return r;
 }
 
 async function updateMessage(client) {
@@ -928,6 +1002,7 @@ module.exports = {
   buildEmbeds,
   buildMessagePayload,
   updateMessage,
+  updateHeader,
   restore,
   setup,
   addClan,
