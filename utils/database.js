@@ -83,7 +83,18 @@ const defaultData = {
 
   rankUsers: {},
   rankApplications: [],
-  rankHistory: []
+  rankHistory: [],
+
+  /*
+   * BLACKLIST
+   *
+   * Kept separate from rank/player persistence.
+   */
+  blacklist: {
+    players: {},
+    clans: {},
+    history: []
+  }
 };
 
 let db = null;
@@ -320,6 +331,23 @@ function normalizeData(saved = {}) {
       ? saved.rankHistory
       : [];
 
+  data.blacklist = {
+    players:
+      saved.blacklist?.players &&
+      typeof saved.blacklist.players === "object"
+        ? saved.blacklist.players
+        : {},
+    clans:
+      saved.blacklist?.clans &&
+      typeof saved.blacklist.clans === "object"
+        ? saved.blacklist.clans
+        : {},
+    history:
+      Array.isArray(saved.blacklist?.history)
+        ? saved.blacklist.history
+        : []
+  };
+
   return data;
 }
 
@@ -521,7 +549,10 @@ async function readFirestoreData() {
   const [
     playersSnap,
     applicationsSnap,
-    historySnap
+    historySnap,
+    blacklistPlayersSnap,
+    blacklistClansSnap,
+    blacklistHistorySnap
   ] = await Promise.all([
     firestore
       .collection("players")
@@ -533,6 +564,18 @@ async function readFirestoreData() {
 
     firestore
       .collection("rankHistory")
+      .get(),
+
+    firestore
+      .collection("blacklistPlayers")
+      .get(),
+
+    firestore
+      .collection("blacklistClans")
+      .get(),
+
+    firestore
+      .collection("blacklistHistory")
       .get()
   ]);
 
@@ -554,6 +597,20 @@ async function readFirestoreData() {
     historySnap.docs.map(
       doc => doc.data()
     );
+
+  result.blacklist = {
+    players: {},
+    clans: {},
+    history: blacklistHistorySnap.docs.map(doc => doc.data())
+  };
+
+  for (const doc of blacklistPlayersSnap.docs) {
+    result.blacklist.players[doc.id] = doc.data();
+  }
+
+  for (const doc of blacklistClansSnap.docs) {
+    result.blacklist.clans[doc.id] = doc.data();
+  }
 
   console.log(
     `☁️ Firestore: ${
@@ -856,6 +913,32 @@ function reconcileData(
     );
 
   /*
+   * BLACKLIST
+   *
+   * Additive by entry ID. Never touch rankUsers.
+   */
+  data.blacklist = {
+    players: {
+      ...(localData.blacklist?.players || {}),
+      ...(cloudData.blacklist?.players || {})
+    },
+    clans: {
+      ...(localData.blacklist?.clans || {}),
+      ...(cloudData.blacklist?.clans || {})
+    },
+    history: [
+      ...(localData.blacklist?.history || []),
+      ...(cloudData.blacklist?.history || [])
+    ].filter((entry, index, array) =>
+      array.findIndex(item =>
+        String(item.id || "") === String(entry.id || "") &&
+        String(item.action || "") === String(entry.action || "") &&
+        Number(item.timestamp || 0) === Number(entry.timestamp || 0)
+      ) === index
+    )
+  };
+
+  /*
    * General metadata.
    */
   if (cloudData.date) {
@@ -1018,6 +1101,48 @@ async function saveFirestoreData(
   }
 
   await applicationBatch.commit();
+
+  /*
+   * BLACKLIST
+   *
+   * Stored in dedicated Firestore collections.
+   * This is intentionally separate from players/rank history.
+   */
+  const blacklist = clean.blacklist || { players: {}, clans: {}, history: [] };
+
+  const blacklistPlayerBatch = firestore.batch();
+  for (const [id, entry] of Object.entries(blacklist.players || {})) {
+    blacklistPlayerBatch.set(
+      firestore.collection("blacklistPlayers").doc(String(id)),
+      entry,
+      { merge: true }
+    );
+  }
+  await blacklistPlayerBatch.commit();
+
+  const blacklistClanBatch = firestore.batch();
+  for (const [id, entry] of Object.entries(blacklist.clans || {})) {
+    blacklistClanBatch.set(
+      firestore.collection("blacklistClans").doc(String(id)),
+      entry,
+      { merge: true }
+    );
+  }
+  await blacklistClanBatch.commit();
+
+  for (const entry of blacklist.history || []) {
+    if (!entry?.id) continue;
+    const historyId = [
+      entry.id,
+      entry.action || "unknown",
+      entry.timestamp || Date.now()
+    ].join("_").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 150);
+
+    await firestore
+      .collection("blacklistHistory")
+      .doc(historyId)
+      .set(entry, { merge: true });
+  }
 
   /*
    * HISTORY
