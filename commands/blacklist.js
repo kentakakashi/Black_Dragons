@@ -140,7 +140,7 @@ async function execute(i,c){
     store[e.id]=e;history(d,e,"added",i.user.id);await saveData(d);
     const publishError=await syncPublic(i,d,type);
     const publishWarning=publishError?"\n\n⚠️ The blacklist was saved, but the public blacklist could not be updated: "+publishError.message:"";
-    return i.reply({embeds:[[new EmbedBuilder().setColor(0x8b0000).setTitle("🚫 "+(type==="clan"?"CLAN":"PLAYER")+" BLACKLISTED").setDescription("**"+e.name+"** has been added to the active blacklist."+publishWarning).setThumbnail(e.profileImageUrl).addFields({name:"🔖 Entry ID",value:"`"+e.id+"`",inline:true},{name:"💬 Discord",value:e.discordId?"<@"+e.discordId+">":"Not provided",inline:true},{name:"🆔 "+(type==="clan"?"Clan":"Roblox")+" ID",value:e.externalId?"`"+e.externalId+"`":"Not provided",inline:true},{name:"📝 Notes",value:e.notes||"None"}).setTimestamp()]});
+    return i.reply({embeds:[new EmbedBuilder().setColor(0x8b0000).setTitle("🚫 "+(type==="clan"?"CLAN":"PLAYER")+" BLACKLISTED").setDescription("**"+e.name+"** has been added to the active blacklist."+publishWarning).setThumbnail(e.profileImageUrl).addFields({name:"🔖 Entry ID",value:"`"+e.id+"`",inline:true},{name:"💬 Discord",value:e.discordId?"<@"+e.discordId+">":"Not provided",inline:true},{name:"🆔 "+(type==="clan"?"Clan":"Roblox")+" ID",value:e.externalId?"`"+e.externalId+"`":"Not provided",inline:true},{name:"📝 Notes",value:e.notes||"None"}).setTimestamp()]});
   }
   const eid=i.options.getString("entry_id"),e=eid?store[eid]:null;
   if(!e)return i.reply({content:"❌ That blacklist entry ID was not found.",ephemeral:true});
@@ -149,7 +149,7 @@ async function execute(i,c){
     e.active=false;e.removedAt=Date.now();e.removedBy=i.user.id;e.updatedAt=Date.now();history(d,e,"removed",i.user.id);await saveData(d);
     const publishError=await syncPublic(i,d,type);
     const publishWarning=publishError?"\n\n⚠️ The blacklist was saved, but the public blacklist could not be updated: "+publishError.message:"";
-    return i.reply({embeds:[[new EmbedBuilder().setColor(0x2b2d31).setTitle("🗑️ BLACKLIST ENTRY REMOVED").setDescription("**"+e.name+"** is no longer on the active blacklist."+publishWarning).addFields({name:"🔖 Entry ID",value:"`"+e.id+"`",inline:true},{name:"👮 Removed By",value:"<@"+i.user.id+">",inline:true}).setFooter({text:"History retained"}).setTimestamp()]});
+    return i.reply({embeds:[new EmbedBuilder().setColor(0x2b2d31).setTitle("🗑️ BLACKLIST ENTRY REMOVED").setDescription("**"+e.name+"** is no longer on the active blacklist."+publishWarning).addFields({name:"🔖 Entry ID",value:"`"+e.id+"`",inline:true},{name:"👮 Removed By",value:"<@"+i.user.id+">",inline:true}).setFooter({text:"History retained"}).setTimestamp()]});
   }
   if(action==="edit"){
     const changed=[],name=i.options.getString("name"),profile=i.options.getAttachment("profile"),discord=i.options.getUser("discord"),external=i.options.getString("external_id"),notes=i.options.getString("notes");
@@ -186,9 +186,9 @@ async function handleModal(i,c){
 }
 
 async function handleButton(i,c){
-  if(!i.customId.startsWith("bl:"))return false;
+  if(!i.customId.startsWith("bl:")&&!i.customId.startsWith("blconfirm:"))return false;
   if(!admin(i)){await i.reply({content:"❌ Only **Administrators** can use the blacklist system.",ephemeral:true});return true;}
-  const p=i.customId.split(":"),a=p[1],type=p[2];
+  const p=i.customId.split(":"),a=p[0]==="blconfirm"?"confirmremove":p[1],type=p[0]==="blconfirm"?p[1]:p[2];
   if(a==="menu"&&!type){await i.update({embeds:[menu()],components:[menuButtons()]});return true;}
   if(a==="menu"&&type){await show(i,c.data,type,0,true);return true;}
   if(a==="back"){await i.update({embeds:[menu()],components:[menuButtons()]});return true;}
@@ -217,7 +217,7 @@ async function handleButton(i,c){
     e.active=false;e.removedAt=Date.now();e.removedBy=i.user.id;e.updatedAt=Date.now();
     history(c.data,e,"removed",i.user.id);await saveData(c.data);
     const publishError=await syncPublic(i,c.data,type);
-    await i.update({content:publishError?"⚠️ **"+e.name+"** was removed and saved, but the public blacklist could not be updated: "+publishError.message:"🗑️ **"+e.name+"** was removed from the active blacklist. History retained.","🗑️ **"+e.name+"** was removed from the active blacklist. History retained.",components:[]});
+    await i.update({content:publishError?"⚠️ **"+e.name+"** was removed and saved, but the public blacklist could not be updated: "+publishError.message:"🗑️ **"+e.name+"** was removed from the active blacklist. History retained.",components:[]});
     return true;
   }
   return false;
