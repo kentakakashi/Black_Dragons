@@ -185,6 +185,15 @@ function buildCommands() {
       ),
 
     new SlashCommandBuilder()
+      .setName('blacklist-publish')
+      .setDescription(
+        'Publish and maintain the public player and clan blacklists.'
+      )
+      .setDefaultMemberPermissions(
+        PermissionFlagsBits.Administrator.toString()
+      ),
+
+    new SlashCommandBuilder()
       .setName('purge')
       .setDescription('Delete messages and archive every deleted message in the message logs.')
       .setDefaultMemberPermissions(
