@@ -11,7 +11,6 @@ module.exports = function registerLogging(client) {
 
   const run = (name, fn) => fn().catch(e => console.error("❌ Logging "+name+" failed:", e));
 
-  client.on("messageCreate", m => run("messageCreate",()=>log.messageCreate(m,client.appData)));
   client.on("messageUpdate", (o,n) => run("messageUpdate",()=>log.messageUpdate(o,n,client.appData)));
   client.on("messageDelete", m => { if (!log.wasPurged(m.id)) run("messageDelete",()=>log.messageDelete(m,client.appData)); });
   client.on("messageDeleteBulk", (messages,ch) => run("messageDeleteBulk",()=>log.bulkDelete(messages,ch,client.appData)));
