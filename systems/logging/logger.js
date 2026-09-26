@@ -18,7 +18,7 @@ function when(t=Date.now()){return "<t:"+Math.floor(t/1000)+":F> • <t:"+Math.f
 function link(m){return m?.guildId&&m?.channelId&&m?.id?"https://discord.com/channels/"+m.guildId+"/"+m.channelId+"/"+m.id:null;}
 function block(v){
   const raw=String(v??"");
-  const safe=clip(raw,950).replace(/```/g,"``\\u200b`");
+  const safe=clip(raw,950).replace(/```/g,"``"+String.fromCharCode(8203)+"`");
   return "```text\n"+safe+"\n```";
 }
 function base(type,title,desc){return new EmbedBuilder().setColor(COLORS[type]||COLORS.general).setTitle((TITLES[type]||TITLES.general)+" • "+title).setDescription(desc||"").setTimestamp();}
