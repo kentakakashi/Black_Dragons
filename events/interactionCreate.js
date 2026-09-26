@@ -74,6 +74,9 @@ module.exports =
               ) ||
               customId.startsWith(
                 'aef:'
+              ) ||
+              customId.startsWith(
+                'aeh:'
               )
             ) {
               const editor =
@@ -280,6 +283,9 @@ module.exports =
               ) ||
               customId.startsWith(
                 'aef:'
+              ) ||
+              customId.startsWith(
+                'aehf:'
               )
             ) {
               const editor =
@@ -337,6 +343,9 @@ module.exports =
               ) ||
               customId.startsWith(
                 'aefm:'
+              ) ||
+              customId.startsWith(
+                'aehm:'
               )
             ) {
               const editor =
