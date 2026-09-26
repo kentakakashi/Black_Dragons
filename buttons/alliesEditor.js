@@ -644,7 +644,7 @@ async function handleHeadButton(i) {
   return true;
 }
 
-async function handleSelect(i) {{
+async function handleSelect(i) {
     if (i.customId.startsWith("aehf:")) {
       const p = i.customId.split(":");
       const s = sessions.get(p[p.length - 1]);
