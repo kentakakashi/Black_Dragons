@@ -13,7 +13,6 @@ module.exports = function registerLogging(client) {
 
   client.on("messageUpdate", (o,n) => run("messageUpdate",()=>log.messageUpdate(o,n,client.appData)));
   client.on("messageDelete", m => { if (!log.wasPurged(m.id)) run("messageDelete",()=>log.messageDelete(m,client.appData)); });
-  client.on("messageDeleteBulk", (messages,ch) => run("messageDeleteBulk",()=>log.bulkDelete(messages,ch,client.appData)));
 
   client.on("guildMemberAdd", async m => {
     run("memberAdd",()=>log.memberAdd(m,client.appData));
