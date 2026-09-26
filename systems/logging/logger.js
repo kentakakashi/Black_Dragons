@@ -292,95 +292,44 @@ async function ensure(guild,data){
 
   const c=cfg(data);
 
-  // IMPORTANT:
-  // A channel selected in /setup is authoritative. It does NOT have to be
-  // inside BLACK DRAGONS • LOGS and it does NOT have to use our default name.
-  // The old code rejected such channels and silently created replacements.
-  let cat=null;
-
-  if(c.categoryId){
-    cat=guild.channels.cache.get(c.categoryId)||null;
-    if(!cat){
-      try{
-        const fetched=await guild.channels.fetch(c.categoryId);
-        if(fetched?.guildId===guild.id) cat=fetched;
-      }catch{}
-    }
-  }
-
-  // Only recover/create the logging category when we actually need a
-  // fallback channel. Configured channels themselves never depend on it.
-  if(!cat||cat.type!==ChannelType.GuildCategory){
-    cat=guild.channels.cache.find(
-      x=>x.guildId===guild.id &&
-         x.type===ChannelType.GuildCategory &&
-         x.name==="BLACK DRAGONS • LOGS"
-    )||null;
-  }
-
+  /*
+   * Configured channel IDs are authoritative.
+   *
+   * IMPORTANT:
+   * Never silently replace an invalid/deleted configured channel with a
+   * newly-created channel. That caused logging IDs to change after restart.
+   * The administrator can repair a missing channel explicitly through /setup.
+   */
   for(const [type,name] of Object.entries(CHANNELS)){
     const configuredId=c.channels[type];
 
-    // A configured channel is the user's explicit choice.
-    if(configuredId){
-      let ch=guild.channels.cache.get(configuredId)||null;
-
-      if(!ch){
-        try{
-          const fetched=await guild.channels.fetch(configuredId);
-          if(fetched?.guildId===guild.id) ch=fetched;
-        }catch{}
-      }
-
-      if(ch && ch.type===ChannelType.GuildText && ch.guildId===guild.id){
-        // Keep it exactly where the administrator selected it.
-        continue;
-      }
-
-      // The configured channel was deleted/invalid. Try to recover a channel
-      // with our canonical name anywhere in this guild before creating one.
-      ch=guild.channels.cache.find(
-        x=>x.guildId===guild.id &&
-           x.type===ChannelType.GuildText &&
-           x.name===name
-      )||null;
-
-      if(ch){
-        c.channels[type]=ch.id;
-        continue;
-      }
-
-      if(!cat){
-        cat=guild.channels.cache.find(
-          x=>x.guildId===guild.id &&
-             x.type===ChannelType.GuildCategory &&
-             x.name==="BLACK DRAGONS • LOGS"
-        )||null;
-      }
-
-      if(!cat){
-        cat=await guild.channels.create({
-          name:"BLACK DRAGONS • LOGS",
-          type:ChannelType.GuildCategory
-        });
-      }
-
-      const replacement=await guild.channels.create({
-        name,
-        type:ChannelType.GuildText,
-        parent:cat.id,
-        topic:(TITLES[type]||type)+" • BLACK DRAGONS detailed audit log"
-      });
-      c.channels[type]=replacement.id;
+    if(!configuredId){
+      // Unconfigured categories stay disabled.
       continue;
     }
 
-    // Do NOT manufacture channels for settings the administrator has not
-    // selected. Unconfigured logging categories simply remain disabled.
+    let ch=guild.channels.cache.get(String(configuredId))||null;
+
+    if(!ch){
+      try{
+        const fetched=await guild.channels.fetch(String(configuredId));
+        if(fetched?.guildId===guild.id) ch=fetched;
+      }catch{}
+    }
+
+    if(ch && ch.type===ChannelType.GuildText && ch.guildId===guild.id){
+      continue;
+    }
+
+    console.warn(
+      `⚠️ Logging channel unavailable for ${type} (${configuredId}). Keeping the configured ID unchanged; reselect it in /setup if needed.`
+    );
   }
 
-  if(cat) c.categoryId=cat.id;
-
+  /*
+   * categoryId is retained as configuration metadata only. It is never used
+   * as a reason to replace explicitly selected logging channels.
+   */
   return c;
 }
 module.exports={CHANNELS,TITLES,ensure,send,messageCreate,messageUpdate,messageDelete,purgeLog,markPurge,wasPurged,memberAdd,memberRemove,memberUpdate,ban,roleCreate,roleDelete,roleUpdate,voice,channelCreate,channelDelete,channelUpdate,guildUpdate,inviteCreate,inviteDelete,inviteUse,thread,command,error};
