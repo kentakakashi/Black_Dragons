@@ -16,7 +16,11 @@ function detailsUser(u){return u?"<@"+u.id+">\n**Tag:** "+(u.tag||u.username)+"\
 function detailsChannel(c){return c?"<#"+c.id+"> **"+c.name+"**\n**ID:** "+c.id+"\n**Type:** "+c.type:"Unknown";}
 function when(t=Date.now()){return "<t:"+Math.floor(t/1000)+":F> • <t:"+Math.floor(t/1000)+":R>";}
 function link(m){return m?.guildId&&m?.channelId&&m?.id?"https://discord.com/channels/"+m.guildId+"/"+m.channelId+"/"+m.id:null;}
-function block(v){return "~~~\n"+clip(v,3300)+"\n~~~";}
+function block(v){
+  const raw=String(v??"");
+  const safe=clip(raw,950).replace(/`````````/g,"``````\\u200b```");
+  return "```text\\n"+safe+"\\n```";
+}
 function base(type,title,desc){return new EmbedBuilder().setColor(COLORS[type]||COLORS.general).setTitle((TITLES[type]||TITLES.general)+" • "+title).setDescription(desc||"").setTimestamp();}
 async function send(guild,data,type,embed){
   if(!guild?.channels) return false;
@@ -55,6 +59,10 @@ async function send(guild,data,type,embed){
 
     if(!ch?.isTextBased() || ch.guildId!==guild.id) return false;
 
+    if(embed?.setFooter){
+      const icon=guild.client?.user?.displayAvatarURL?.({extension:"png",size:64})||undefined;
+      embed.setFooter({text:"BLACK DRAGONS • Audit Logs",iconURL:icon});
+    }
     await ch.send({embeds:[embed]});
     return true;
   } catch(e) {
@@ -65,25 +73,93 @@ async function send(guild,data,type,embed){
 }
 async function actor(guild,type,target){try{const a=await guild.fetchAuditLogs({type,limit:8});const e=a.entries.find(x=>Date.now()-x.createdTimestamp<10000&&(!target||String(x.target?.id||x.targetId)===String(target)));return e?.executor||null;}catch{return null;}}
 
+function tokenize(text){
+  return String(text??"").match(/\s+|[\p{L}\p{N}_]+|[^\p{L}\p{N}\s]/gu)||[];
+}
+
+function underline(text){
+  const s=String(text??"");
+  if(!s)return "";
+  return "__"+s.replace(/\\/g,"\\\\").replace(/_/g,"\\_")+"__";
+}
+
+function prefixSuffixDiff(oldText,newText){
+  const a=String(oldText??"");
+  const b=String(newText??"");
+  let start=0;
+  while(start<a.length&&start<b.length&&a[start]===b[start])start++;
+  let ai=a.length-1,bi=b.length-1;
+  while(ai>=start&&bi>=start&&a[ai]===b[bi]){ai--;bi--;}
+  const oldMiddle=a.slice(start,ai+1);
+  const newMiddle=b.slice(start,bi+1);
+  const oldOut=a.slice(0,start)+(oldMiddle?underline(oldMiddle):"")+a.slice(ai+1);
+  const newOut=b.slice(0,start)+(newMiddle?underline(newMiddle):"")+b.slice(bi+1);
+  return {
+    old:oldOut||"*(empty)*",
+    next:newOut||"*(empty)*"
+  };
+}
+
 function diff(oldText,newText){
-  const a=String(oldText||"").match(/\s+|[A-Za-z0-9_]+|[^A-Za-z0-9_\s]/g)||[];
-  const b=String(newText||"").match(/\s+|[A-Za-z0-9_]+|[^A-Za-z0-9_\s]/g)||[];
+  const aAll=tokenize(oldText);
+  const bAll=tokenize(newText);
+
+  let left=0;
+  while(left<aAll.length&&left<bAll.length&&aAll[left]===bAll[left])left++;
+
+  let ar=aAll.length-1,br=bAll.length-1;
+  while(ar>=left&&br>=left&&aAll[ar]===bAll[br]){ar--;br--;}
+
+  const prefix=aAll.slice(0,left);
+  const suffix=aAll.slice(ar+1);
+  const a=aAll.slice(left,ar+1);
+  const b=bAll.slice(left,br+1);
+
+  if(!a.length&&!b.length){
+    return {old:String(oldText||"")||"*(empty)*",next:String(newText||"")||"*(empty)*"};
+  }
+
+  if(a.length*b.length>900000){
+    return prefixSuffixDiff(oldText,newText);
+  }
+
   const n=a.length,m=b.length;
-  if(n*m>120000){return{old:"__"+clip(oldText,1800)+"__",next:"__"+clip(newText,1800)+"__"};}
   const dp=Array.from({length:n+1},()=>new Uint16Array(m+1));
-  for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)dp[i][j]=a[i]===b[j]?dp[i+1][j+1]+1:Math.max(dp[i+1][j],dp[i][j+1]);
+  for(let i=n-1;i>=0;i--){
+    for(let j=m-1;j>=0;j--){
+      dp[i][j]=a[i]===b[j]?dp[i+1][j+1]+1:Math.max(dp[i+1][j],dp[i][j+1]);
+    }
+  }
+
   let i=0,j=0,oldOut=[],newOut=[];
   while(i<n||j<m){
-    if(i<n&&j<m&&a[i]===b[j]){oldOut.push(a[i]);newOut.push(b[j]);i++;j++;continue;}
-    let ro=[],an=[];
+    if(i<n&&j<m&&a[i]===b[j]){
+      oldOut.push(a[i]);
+      newOut.push(b[j]);
+      i++;j++;
+      continue;
+    }
+
+    const removed=[],added=[];
     while(i<n||j<m){
       if(i<n&&j<m&&a[i]===b[j])break;
-      if(j<m&&(i===n||dp[i][j+1]>=dp[i+1][j]))an.push(b[j++]);else if(i<n)ro.push(a[i++]);
+      if(j<m&&(i===n||dp[i][j+1]>=dp[i+1][j]))added.push(b[j++]);
+      else if(i<n)removed.push(a[i++]);
     }
-    if(ro.length)oldOut.push("__"+ro.join("")+"__");
-    if(an.length)newOut.push("__"+an.join("")+"__");
+
+    if(removed.length)oldOut.push(underline(removed.join("")));
+    if(added.length)newOut.push(underline(added.join("")));
   }
-  return{old:oldOut.join("")||"*(empty)*",next:newOut.join("")||"*(empty)*"};
+
+  const oldMiddle=oldOut.join("");
+  const newMiddle=newOut.join("");
+  const commonEdges=prefix.join("");
+  const commonSuffix=suffix.join("");
+
+  return {
+    old:(commonEdges+oldMiddle+commonSuffix)||"*(empty)*",
+    next:(commonEdges+newMiddle+commonSuffix)||"*(empty)*"
+  };
 }
 
 function attachmentText(m){const a=[...(m?.attachments?.values?.()||[])];return a.length?a.map(x=>x.name+": "+x.url).join("\n"):"None";}
@@ -97,15 +173,48 @@ async function messageCreate(m,data){
 }
 async function messageUpdate(oldM,newM,data){
   if(!newM.guild||newM.author?.bot)return;
-  if(oldM.content===newM.content&&oldM.attachments?.size===newM.attachments?.size)return;
-  const d=diff(oldM.content,newM.content),e=base("message","Message Edited","👤 **Author**\n"+detailsUser(newM.author)+"\n\n📍 **Channel**\n"+detailsChannel(newM.channel))
-    .addFields({name:"🕐 Edited",value:when()},{name:"⬅️ Previous",value:clip(d.old,1800)},{name:"➡️ Edited",value:clip(d.next,1800)},{name:"📎 Attachments",value:clip(attachmentText(newM),900)});
-  const l=link(newM);if(l)e.addFields({name:"🔗 Message",value:"[Jump to message]("+l+")"});await send(newM.guild,data,"message",e);
+  const contentChanged=oldM.content!==newM.content;
+  const attachmentsChanged=oldM.attachments?.size!==newM.attachments?.size;
+  if(!contentChanged&&!attachmentsChanged)return;
+
+  const d=diff(oldM.content,newM.content);
+  const avatar=newM.author?.displayAvatarURL?.({extension:"png",size:128})||null;
+  const e=base("message","Message Edited","✏️ **A message was edited.**\nOnly the text that changed is underlined.")
+    .addFields(
+      {name:"👤 Author",value:detailsUser(newM.author),inline:true},
+      {name:"📍 Channel",value:detailsChannel(newM.channel),inline:true},
+      {name:"🕐 Edited",value:when(),inline:true},
+      {name:"⬅️ Before",value:clip(d.old,1000)},
+      {name:"➡️ After",value:clip(d.next,1000)},
+      {name:"📎 Attachments",value:clip(attachmentText(newM),900),inline:true},
+      {name:"🆔 Message ID",value:newM.id,inline:true}
+    );
+
+  if(avatar)e.setThumbnail(avatar);
+  const l=link(newM);
+  if(l)e.addFields({name:"🔗 Jump to Message",value:"[Open the edited message]("+l+")"});
+  await send(newM.guild,data,"message",e);
 }
 async function messageDelete(m,data){
   if(!m.guild||m.author?.bot)return;
-  const a=await actor(m.guild,AuditLogEvent.MessageDelete,m.author?.id),e=base("message","Message Deleted","👤 **Author**\n"+detailsUser(m.author)+"\n\n📍 **Channel**\n"+detailsChannel(m.channel))
-    .addFields({name:"🕐 Deleted",value:when()},{name:"🛡️ Deleted By",value:a?detailsUser(a):"Unknown / unavailable"},{name:"📝 Original",value:block(m.content||"Not cached by the bot.")},{name:"📎 Attachments",value:clip(attachmentText(m),900)},{name:"🆔 Message ID",value:m.id});
+
+  const a=await actor(m.guild,AuditLogEvent.MessageDelete,m.author?.id);
+  const avatar=m.author?.displayAvatarURL?.({extension:"png",size:128})||null;
+  const cached=Boolean(m.content||m.attachments?.size);
+  const e=base("message","Message Deleted","🗑️ **A message was deleted.**\nThe original content is shown below without strikethrough styling.")
+    .addFields(
+      {name:"👤 Author",value:detailsUser(m.author),inline:true},
+      {name:"📍 Channel",value:detailsChannel(m.channel),inline:true},
+      {name:"🕐 Deleted",value:when(),inline:true},
+      {name:"🛡️ Deleted By",value:a?detailsUser(a):"Unknown / unavailable",inline:true},
+      {name:"📝 Original Message",value:cached?block(m.content||"(attachment-only message)"):"*(Message content was not cached by the bot.)*"},
+      {name:"📎 Attachments",value:clip(attachmentText(m),900),inline:true},
+      {name:"🆔 Message ID",value:m.id,inline:true}
+    );
+
+  if(avatar)e.setThumbnail(avatar);
+  const l=link(m);
+  if(l)e.addFields({name:"🔗 Message Link",value:"[Open the message location]("+l+")"});
   await send(m.guild,data,"message",e);
 }
 async function purgeLog(guild,data,channel,mod,messages){
