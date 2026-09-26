@@ -43,6 +43,16 @@ const defaultData = {
       }
     },
 
+    blacklist: {
+      public: {
+        enabled: false,
+        playerChannelId: null,
+        clanChannelId: null,
+        playerMessages: {},
+        clanMessages: {}
+      }
+    },
+
     rank: {
       registrationChannelId: null,
       reviewChannelId: null,
@@ -204,6 +214,23 @@ function normalizeData(saved = {}) {
     channels: {
       ...data.config.logs.channels,
       ...(saved.config?.logs?.channels || {})
+    }
+  };
+
+  data.config.blacklist = {
+    ...data.config.blacklist,
+    ...(saved.config?.blacklist || {}),
+    public: {
+      ...data.config.blacklist.public,
+      ...(saved.config?.blacklist?.public || {}),
+      playerMessages: {
+        ...data.config.blacklist.public.playerMessages,
+        ...(saved.config?.blacklist?.public?.playerMessages || {})
+      },
+      clanMessages: {
+        ...data.config.blacklist.public.clanMessages,
+        ...(saved.config?.blacklist?.public?.clanMessages || {})
+      }
     }
   };
 
@@ -832,6 +859,26 @@ function reconcileData(
       channels: {
         ...localData.config.logs.channels,
         ...cloudData.config.logs.channels
+      }
+    },
+
+    blacklist: {
+      ...localData.config.blacklist,
+      ...cloudData.config.blacklist,
+
+      public: {
+        ...localData.config.blacklist.public,
+        ...cloudData.config.blacklist.public,
+
+        playerMessages: {
+          ...localData.config.blacklist.public.playerMessages,
+          ...cloudData.config.blacklist.public.playerMessages
+        },
+
+        clanMessages: {
+          ...localData.config.blacklist.public.clanMessages,
+          ...cloudData.config.blacklist.public.clanMessages
+        }
       }
     },
 
