@@ -93,7 +93,7 @@ function headEditorEmbed(s) {
     .setColor(c)
     .setTitle("🛠️ HEAD EMBED EDITOR")
     .setDescription(
-      "Edit the **top BLACK DRAGONS • ALLIES embed**.\\n\\n" +
+      "Edit the **top BLACK DRAGONS • ALLIES embed**.\n\n" +
       "📝 **Title:** " + (d.title || "Not set") + "\n" +
       "📄 **Description:** " + (d.description ? "Set" : "Not set") + "\n" +
       "🖼️ **Image:** " + (d.image?.url ? "Set" : "Not set") + "\n" +
