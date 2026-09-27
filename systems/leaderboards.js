@@ -15,87 +15,183 @@ const TITLE_DEFINITIONS = [
 ];
 
 const DEFAULT_CONFIG = {
-  rankingChannelId:null, topKillsChannelId:null,
-  rankingMessageId:null, topKillsMessageId:null,
+  rankingChannelId:null,
+  topKillsChannelId:null,
+  rankingMessageId:null,
+  topKillsMessageId:null,
   rankingTitle:"🏅 BLACK DRAGONS • RANKING TITLES",
   rankingDescription:"The strongest people you defeat determine how high your title can rise. One warrior may hold only one title.",
   topKillsTitle:"🏆 BLACK DRAGONS • TOP KILLS",
   topKillsDescription:"The live Black Dragons kill leaderboard.",
-  rankingColor:0x8B0000, topKillsColor:0x8B0000, titles:{}
+  rankingColor:0x8B0000,
+  topKillsColor:0x8B0000,
+  rankingRoleIds:{},
+  titles:{}
 };
 
 function ensure(data){
+  if(!data) throw new Error("Leaderboard data is unavailable.");
   data.config ||= {};
   const old=data.config.leaderboards || {};
-  data.config.leaderboards={...DEFAULT_CONFIG,...old,titles:{...(old.titles||{})}};
+  data.config.leaderboards={
+    ...DEFAULT_CONFIG,
+    ...old,
+    rankingRoleIds:{...DEFAULT_CONFIG.rankingRoleIds,...(old.rankingRoleIds||{})},
+    titles:{...(old.titles||{})}
+  };
   return data.config.leaderboards;
 }
 
-function rankingEmbed(data){
+function mention(id, role=false){
+  return role ? "<@&"+String(id)+">" : "<@"+String(id)+">";
+}
+
+async function getRankingRoleState(client,data){
   const cfg=ensure(data);
-  const e=new EmbedBuilder().setColor(Number.isInteger(cfg.rankingColor)?cfg.rankingColor:DEFAULT_CONFIG.rankingColor)
+  const guild=client?.guilds?.cache?.first();
+  const result=[];
+  if(!guild) return result;
+
+  // GuildMembers intent is enabled. Fetch once so role membership is current
+  // even when the role's members were not already cached.
+  try{ await guild.members.fetch(); }catch{}
+
+  for(const title of TITLE_DEFINITIONS){
+    const roleId=cfg.rankingRoleIds?.[title.key] || null;
+    let role=null;
+    if(roleId){
+      try{role=await guild.roles.fetch(String(roleId));}catch{}
+    }
+    const holders=role
+      ? [...role.members.values()].map(member=>String(member.id))
+      : [];
+
+    result.push({title,roleId:roleId?String(roleId):null,role,holders});
+  }
+  return result;
+}
+
+async function rankingEmbed(client,data){
+  const cfg=ensure(data);
+  const states=await getRankingRoleState(client,data);
+  const e=new EmbedBuilder()
+    .setColor(Number.isInteger(cfg.rankingColor)?cfg.rankingColor:DEFAULT_CONFIG.rankingColor)
     .setTitle(cfg.rankingTitle||DEFAULT_CONFIG.rankingTitle)
     .setDescription(cfg.rankingDescription||DEFAULT_CONFIG.rankingDescription)
-    .setTimestamp().setFooter({text:"BLACK DRAGONS • TITLES • LIVE"});
-  for(const t of TITLE_DEFINITIONS){
-    const holder=cfg.titles[t.key] && cfg.titles[t.key].userId;
-    e.addFields({name:t.emoji+" • "+t.name,value:holder?"👤 <@"+holder+">":"👤 **VACANT**",inline:false});
+    .setTimestamp()
+    .setFooter({text:"BLACK DRAGONS • TITLES • LIVE"});
+
+  for(const state of states){
+    const roleText=state.role
+      ? mention(state.role.id,true)
+      : state.roleId
+        ? "⚠️ Configured role unavailable"
+        : "⚙️ Role not configured";
+
+    const holderText=state.holders.length
+      ? state.holders.map(id=>mention(id)).join(", ")
+      : "👤 **VACANT**";
+
+    e.addFields({
+      name:state.title.emoji+" • "+state.title.name,
+      value:roleText+"\n"+holderText,
+      inline:false
+    });
   }
+
+  if(!states.length){
+    e.setDescription((cfg.rankingDescription||DEFAULT_CONFIG.rankingDescription)+"\n\n⚙️ Configure the Ranking Title Roles in /setup → Leaderboards.");
+  }
+
   return e;
 }
 
-function killsEmbed(data){
+function rankingEditorEmbed(data,guild){
   const cfg=ensure(data);
-  const users=Object.values(data.rankUsers||{}).filter(x=>x&&x.discordId)
-    .sort((a,b)=>(Number(b.kills)||0)-(Number(a.kills)||0)).slice(0,25);
-  const lines=users.length ? users.map((u,i)=>{
-    const medal=i===0?"🥇":i===1?"🥈":i===2?"🥉":"**"+(i+1)+".**";
-    const name=u.robloxUsername?" • "+String(u.robloxUsername).slice(0,60):"";
-    const rank=u.rank?" • **"+u.rank+"**":"";
-    return medal+" <@"+u.discordId+">"+name+" — **"+(Number(u.kills)||0)+" KILLS**"+rank;
-  }).join("\n") : "No ranked players yet.";
-  return new EmbedBuilder().setColor(Number.isInteger(cfg.topKillsColor)?cfg.topKillsColor:DEFAULT_CONFIG.topKillsColor)
+  const lines=TITLE_DEFINITIONS.map(t=>{
+    const roleId=cfg.rankingRoleIds?.[t.key];
+    const role=roleId ? guild?.roles?.cache?.get(String(roleId)) : null;
+    return t.emoji+" **"+t.name+"**\n🎭 "+(role?role.toString():"**Not configured**");
+  }).join("\n\n");
+
+  return new EmbedBuilder()
+    .setColor(cfg.rankingColor)
+    .setTitle("🛠️ RANKING TITLES EDITOR")
+    .setDescription(lines+"\n\nThe live leaderboard reads the members of these Discord roles automatically. Role mapping is configured in **/setup → Leaderboards**.")
+    .setFooter({text:"Firebase-backed configuration"});
+}
+
+function killsEmbed(data,client){
+  const cfg=ensure(data);
+  const users=Object.values(data.rankUsers||{})
+    .filter(x=>x&&x.discordId)
+    .sort((a,b)=>(Number(b.kills)||0)-(Number(a.kills)||0))
+    .slice(0,25);
+
+  const icon=client?.guilds?.cache?.first()?.iconURL?.({size:256});
+
+  const lines=users.length
+    ? users.map((u,i)=>{
+        const medal=i===0?"🥇":i===1?"🥈":i===2?"🥉":"#"+(i+1);
+        const rank=String(u.rank||"E").toUpperCase();
+        return medal+"  <@"+u.discordId+">\n   **Rank:** "+rank+"  •  **Kills:** "+(Number(u.kills)||0).toLocaleString("en-US");
+      }).join("\n\n")
+    : "No ranked players yet.";
+
+  const e=new EmbedBuilder()
+    .setColor(Number.isInteger(cfg.topKillsColor)?cfg.topKillsColor:DEFAULT_CONFIG.topKillsColor)
     .setTitle(cfg.topKillsTitle||DEFAULT_CONFIG.topKillsTitle)
     .setDescription((cfg.topKillsDescription||DEFAULT_CONFIG.topKillsDescription)+"\n\n"+lines)
-    .setTimestamp().setFooter({text:"BLACK DRAGONS • LIVE • TOP "+users.length});
+    .setTimestamp()
+    .setFooter({text:"BLACK DRAGONS • LIVE • TOP "+users.length});
+
+  if(icon) e.setThumbnail(icon);
+  return e;
 }
 
 async function upsert(client,data,kind,embed){
   const cfg=ensure(data);
   const channelId=kind==="ranking"?cfg.rankingChannelId:cfg.topKillsChannelId;
   const messageKey=kind==="ranking"?"rankingMessageId":"topKillsMessageId";
+
   if(!channelId)return {ok:false,reason:"NOT_CONFIGURED"};
-  let channel; try{channel=await client.channels.fetch(String(channelId));}catch{return {ok:false,reason:"CHANNEL_NOT_FOUND"};}
+
+  let channel;
+  try{channel=await client.channels.fetch(String(channelId));}
+  catch{return {ok:false,reason:"CHANNEL_NOT_FOUND"};}
+
   if(!channel||!channel.isTextBased())return {ok:false,reason:"INVALID_CHANNEL"};
+
   let message=null;
-  if(cfg[messageKey]){try{message=await channel.messages.fetch(String(cfg[messageKey]));}catch{}}
+  if(cfg[messageKey]){
+    try{message=await channel.messages.fetch(String(cfg[messageKey]));}catch{}
+  }
+
   const payload={embeds:[embed],allowedMentions:{parse:[]}};
-  if(message)await message.edit(payload);
-  else{message=await channel.send(payload);cfg[messageKey]=message.id;await saveData(data);}
+  if(message){
+    await message.edit(payload);
+  }else{
+    message=await channel.send(payload);
+    cfg[messageKey]=message.id;
+    await saveData(data);
+  }
+
   return {ok:true,message};
 }
 
 async function refreshAll(client,data){
   ensure(data);
-  const results={ranking:await upsert(client,data,"ranking",rankingEmbed(data)),topKills:await upsert(client,data,"topKills",killsEmbed(data))};
-  if(results.ranking.ok||results.topKills.ok)await saveData(data);
+  const results={
+    ranking:await upsert(client,data,"ranking",await rankingEmbed(client,data)),
+    topKills:await upsert(client,data,"topKills",killsEmbed(data,client))
+  };
+  if(results.ranking.ok||results.topKills.ok) await saveData(data);
   return results;
-}
-
-async function assignTitle(client,data,titleKey,userId,actorId){
-  const cfg=ensure(data);
-  const title=TITLE_DEFINITIONS.find(x=>x.key===titleKey);
-  if(!title)throw new Error("Unknown ranking title.");
-  if(userId){
-    const other=TITLE_DEFINITIONS.find(x=>x.key!==titleKey&&cfg.titles[x.key]&&cfg.titles[x.key].userId===userId);
-    if(other)throw new Error("<@"+userId+"> already holds **"+other.name+"**. One person can hold only one title.");
-    cfg.titles[titleKey]={userId:String(userId),updatedAt:Date.now(),updatedBy:actorId||null};
-  }else delete cfg.titles[titleKey];
-  await saveData(data); return refreshAll(client,data);
 }
 
 async function updateStyle(client,data,kind,changes){
   const cfg=ensure(data);
+
   if(kind==="ranking"){
     if(changes.title!==undefined)cfg.rankingTitle=String(changes.title).trim()||DEFAULT_CONFIG.rankingTitle;
     if(changes.description!==undefined)cfg.rankingDescription=String(changes.description).trim()||DEFAULT_CONFIG.rankingDescription;
@@ -105,7 +201,19 @@ async function updateStyle(client,data,kind,changes){
     if(changes.description!==undefined)cfg.topKillsDescription=String(changes.description).trim()||DEFAULT_CONFIG.topKillsDescription;
     if(changes.color!==undefined)cfg.topKillsColor=Number(changes.color);
   }
-  await saveData(data); return refreshAll(client,data);
+
+  await saveData(data);
+  return refreshAll(client,data);
 }
 
-module.exports={TITLE_DEFINITIONS,DEFAULT_CONFIG,ensure,rankingEmbed,killsEmbed,refreshAll,assignTitle,updateStyle};
+module.exports={
+  TITLE_DEFINITIONS,
+  DEFAULT_CONFIG,
+  ensure,
+  getRankingRoleState,
+  rankingEmbed,
+  rankingEditorEmbed,
+  killsEmbed,
+  refreshAll,
+  updateStyle
+};
