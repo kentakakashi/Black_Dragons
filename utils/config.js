@@ -194,6 +194,20 @@ function buildCommands() {
       ),
 
     new SlashCommandBuilder()
+      .setName('embed')
+      .setDescription('Open the Black Dragons embed editor.')
+      .setDefaultMemberPermissions(
+        PermissionFlagsBits.Administrator.toString()
+      ),
+
+    new SlashCommandBuilder()
+      .setName('publish-leaderboards')
+      .setDescription('Publish or refresh the permanent live leaderboards.')
+      .setDefaultMemberPermissions(
+        PermissionFlagsBits.Administrator.toString()
+      ),
+
+    new SlashCommandBuilder()
       .setName('purge')
       .setDescription('Delete messages and archive every deleted message in the message logs.')
       .setDefaultMemberPermissions(
