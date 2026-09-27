@@ -1,0 +1,34 @@
+const {ActionRowBuilder,ButtonBuilder,ButtonStyle,StringSelectMenuBuilder,StringSelectMenuOptionBuilder,UserSelectMenuBuilder,ModalBuilder,TextInputBuilder,TextInputStyle,EmbedBuilder,PermissionFlagsBits}=require("discord.js");
+const lb=require("../systems/leaderboards");
+const sessions=new Map(),TTL=30*60*1000;
+const row=x=>new ActionRowBuilder().addComponents(x),admin=i=>i.memberPermissions?.has(PermissionFlagsBits.Administrator),id=()=>Math.random().toString(36).slice(2,10);
+function put(s){if(s.t)clearTimeout(s.t);s.t=setTimeout(()=>sessions.delete(s.id),TTL);if(s.t.unref)s.t.unref();sessions.set(s.id,s);}
+function get(i){return sessions.get(i.customId.split(":").pop());}
+function board(s){return new StringSelectMenuBuilder().setCustomId("embedit:board:"+s.id).setPlaceholder("Choose a leaderboard").addOptions(
+{label:"Ranking Titles",description:"Assign/remove holders and edit appearance.",emoji:"🏅",value:"ranking"},
+{label:"Top Kills",description:"Edit the live kill leaderboard appearance.",emoji:"🏆",value:"topKills"});}
+function home(){return new EmbedBuilder().setColor(0x8B0000).setTitle("🏆 LEADERBOARD EMBED EDITOR").setDescription("Choose a live leaderboard to edit.\n\n**Ranking Titles** — manage all ten title holders.\n**Top Kills** — edit the live kill leaderboard appearance.");}
+function ranking(data){const c=lb.ensure(data);return new EmbedBuilder().setColor(c.rankingColor).setTitle("🛠️ RANKING TITLES EDITOR").setDescription(lb.TITLE_DEFINITIONS.map(t=>t.emoji+" **"+t.name+"** — "+(c.titles[t.key]?.userId?"<@"+c.titles[t.key].userId+">":"VACANT")).join("\n")+"\n\nSelect a title, then assign/remove its holder. **One person can hold only one title.**");}
+function kills(data){const c=lb.ensure(data);return new EmbedBuilder().setColor(c.topKillsColor).setTitle("🛠️ TOP KILLS EDITOR").setDescription("Live data comes from the existing **rankUsers** kill records.\n\nUse **APPEARANCE** to edit the title, description and color.");}
+function controls(s){if(s.mode==="ranking")return[
+row(new StringSelectMenuBuilder().setCustomId("embedit:title:"+s.id).setPlaceholder("Choose a ranking title").addOptions(lb.TITLE_DEFINITIONS.map(t=>new StringSelectMenuOptionBuilder().setLabel(t.name).setEmoji(t.emoji).setValue(t.key)))),
+row(new ButtonBuilder().setCustomId("embedit:assign:"+s.id).setLabel("ASSIGN HOLDER").setEmoji("👤").setStyle(ButtonStyle.Primary),new ButtonBuilder().setCustomId("embedit:remove:"+s.id).setLabel("REMOVE HOLDER").setEmoji("🗑️").setStyle(ButtonStyle.Danger),new ButtonBuilder().setCustomId("embedit:appearance:"+s.id).setLabel("APPEARANCE").setEmoji("🎨").setStyle(ButtonStyle.Secondary)),
+row(new ButtonBuilder().setCustomId("embedit:back:"+s.id).setLabel("← CATEGORIES").setStyle(ButtonStyle.Secondary))];
+return[row(new ButtonBuilder().setCustomId("embedit:appearance:"+s.id).setLabel("APPEARANCE").setEmoji("🎨").setStyle(ButtonStyle.Secondary),new ButtonBuilder().setCustomId("embedit:back:"+s.id).setLabel("← CATEGORIES").setStyle(ButtonStyle.Secondary))];}
+async function render(i,s){put(s);await i.update({embeds:[s.mode==="ranking"?ranking(s.data):kills(s.data)],components:controls(s),allowedMentions:{parse:[]}});}
+function modal(s){const c=lb.ensure(s.data),r=s.mode==="ranking";return new ModalBuilder().setCustomId("embedit:modal:"+s.id).setTitle(r?"🏅 Ranking Embed":"🏆 Top Kills Embed").addComponents(
+row(new TextInputBuilder().setCustomId("title").setLabel("Embed title").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(256).setValue(String(r?c.rankingTitle:c.topKillsTitle).slice(0,256))),
+row(new TextInputBuilder().setCustomId("description").setLabel("Description").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(4000).setValue(String(r?c.rankingDescription:c.topKillsDescription).slice(0,4000))),
+row(new TextInputBuilder().setCustomId("color").setLabel("HEX color").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(7).setValue("#"+Number(r?c.rankingColor:c.topKillsColor).toString(16).padStart(6,"0"))));}
+async function handleSelect(i){if(!i.customId.startsWith("embed:")&&!i.customId.startsWith("embedit:"))return false;if(!admin(i)){await i.reply({content:"❌ Administrator only.",ephemeral:true});return true;}
+if(i.customId==="embed:category"){const s={id:id(),mode:null,data:i.client.appData};put(s);await i.update({embeds:[home()],components:[row(board(s))]});return true;}
+if(i.customId.startsWith("embedit:board:")){const s=get(i);if(!s)return true;s.mode=i.values[0];await render(i,s);return true;}
+if(i.customId.startsWith("embedit:title:")){const s=get(i);if(!s)return true;s.titleKey=i.values[0];await i.reply({content:"Selected title: **"+lb.TITLE_DEFINITIONS.find(t=>t.key===s.titleKey).name+"**",ephemeral:true});return true;}return false;}
+async function handleButton(i){if(!i.customId.startsWith("embedit:"))return false;if(!admin(i)){await i.reply({content:"❌ Administrator only.",ephemeral:true});return true;}const s=get(i);if(!s)return true;
+if(i.customId.startsWith("embedit:back:")){s.mode=null;await i.update({embeds:[home()],components:[row(board(s))]});return true;}
+if(i.customId.startsWith("embedit:assign:")){if(!s.titleKey)return i.reply({content:"❌ Select a title first.",ephemeral:true});await i.update({embeds:[ranking(s.data)],components:[row(new UserSelectMenuBuilder().setCustomId("embedit:user:"+s.id).setPlaceholder("Choose the title holder").setMinValues(1).setMaxValues(1)),row(new ButtonBuilder().setCustomId("embedit:cancel:"+s.id).setLabel("CANCEL").setStyle(ButtonStyle.Secondary))]});return true;}
+if(i.customId.startsWith("embedit:remove:")){if(!s.titleKey)return i.reply({content:"❌ Select a title first.",ephemeral:true});await lb.assignTitle(i.client,s.data,s.titleKey,null,i.user.id);await render(i,s);return true;}
+if(i.customId.startsWith("embedit:appearance:")){await i.showModal(modal(s));return true;}return false;}
+async function handleUserSelect(i){if(!i.customId.startsWith("embedit:user:"))return false;const s=get(i);if(!s)return true;try{await lb.assignTitle(i.client,s.data,s.titleKey,i.values[0],i.user.id);await render(i,s);}catch(e){await i.reply({content:"❌ "+(e?.message||"Could not assign title."),ephemeral:true});}return true;}
+async function handleModal(i){if(!i.customId.startsWith("embedit:modal:"))return false;const s=get(i);if(!s)return true;const color=String(i.fields.getTextInputValue("color")).replace(/^#/,"");if(!/^[0-9a-f]{6}$/i.test(color))return i.reply({content:"❌ Invalid HEX color.",ephemeral:true});await lb.updateStyle(i.client,s.data,s.mode,{title:i.fields.getTextInputValue("title"),description:i.fields.getTextInputValue("description"),color:parseInt(color,16)});await render(i,s);return true;}
+module.exports={handleSelect,handleUserSelect,handleButton,handleModal};
