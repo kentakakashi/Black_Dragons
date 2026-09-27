@@ -168,6 +168,19 @@ module.exports =
 
         /*
         ==========================================
+        LIVE LEADERBOARDS
+        ==========================================
+        */
+        try {
+          const leaderboards = require("../systems/leaderboards");
+          await leaderboards.refreshAll(client, client.appData);
+          console.log("🏆 Live leaderboards restored.");
+        } catch (error) {
+          console.error("❌ Could not restore live leaderboards:", error);
+        }
+
+        /*
+        ==========================================
         RANK APPLICATION CLEANUP
         ==========================================
         */
