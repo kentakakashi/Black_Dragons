@@ -64,6 +64,18 @@ const defaultData = {
       topKillsDescription: "The live Black Dragons kill leaderboard.",
       rankingColor: 0x8B0000,
       topKillsColor: 0x8B0000,
+      rankingRoleIds: {
+        shadow_monarch: null,
+        destruction_monarch: null,
+        white_flame_monarch: null,
+        frost_monarch: null,
+        plague_monarch: null,
+        fang_monarch: null,
+        monarch_of_beginning: null,
+        iron_body_monarch: null,
+        transfiguration_monarch: null,
+        rising_monarch: null
+      },
       titles: {}
     },
 
@@ -234,6 +246,10 @@ function normalizeData(saved = {}) {
   data.config.leaderboards = {
     ...data.config.leaderboards,
     ...(saved.config?.leaderboards || {}),
+    rankingRoleIds: {
+      ...data.config.leaderboards.rankingRoleIds,
+      ...(saved.config?.leaderboards?.rankingRoleIds || {})
+    },
     titles: {
       ...data.config.leaderboards.titles,
       ...(saved.config?.leaderboards?.titles || {})
