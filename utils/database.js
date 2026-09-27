@@ -53,6 +53,20 @@ const defaultData = {
       }
     },
 
+    leaderboards: {
+      rankingChannelId: null,
+      topKillsChannelId: null,
+      rankingMessageId: null,
+      topKillsMessageId: null,
+      rankingTitle: "🏅 BLACK DRAGONS • RANKING TITLES",
+      rankingDescription: "The strongest people you defeat determine how high your title can rise. One warrior may hold only one title.",
+      topKillsTitle: "🏆 BLACK DRAGONS • TOP KILLS",
+      topKillsDescription: "The live Black Dragons kill leaderboard.",
+      rankingColor: 0x8B0000,
+      topKillsColor: 0x8B0000,
+      titles: {}
+    },
+
     rank: {
       registrationChannelId: null,
       reviewChannelId: null,
@@ -214,6 +228,15 @@ function normalizeData(saved = {}) {
     channels: {
       ...data.config.logs.channels,
       ...(saved.config?.logs?.channels || {})
+    }
+  };
+
+  data.config.leaderboards = {
+    ...data.config.leaderboards,
+    ...(saved.config?.leaderboards || {}),
+    titles: {
+      ...data.config.leaderboards.titles,
+      ...(saved.config?.leaderboards?.titles || {})
     }
   };
 
