@@ -40,7 +40,7 @@ function publicEmbed(entry,type){
   return embed;
 }
 
-async function syncType(guild,data,type){
+async function syncType(guild,data,type,client=null){
   const cfg=getConfig(data);
   const channelKey=type==="clan"?"clanChannelId":"playerChannelId";
   const messageKey=type==="clan"?"clanMessages":"playerMessages";
@@ -55,7 +55,7 @@ async function syncType(guild,data,type){
 
   let channel;
   try{
-    channel=await guild.channels.fetch(String(configuredId));
+    channel=client ? await client.channels.fetch(String(configuredId)) : await guild.channels.fetch(String(configuredId));
   }catch{
     throw new Error(
       type==="clan"
@@ -97,7 +97,14 @@ async function syncIfPublished(guild,data,type){if(!getConfig(data).enabled)retu
 async function restore(client){
   const data=client.appData,cfg=getConfig(data); if(!cfg.enabled)return;
   const guild=client.guilds.cache.first(); if(!guild)return;
-  try{await syncType(guild,data,"player");await syncType(guild,data,"clan");await saveData(data);console.log("🚫 Public blacklist embeds restored.");}
+  try{
+    // Resolve the persisted Firebase channel IDs globally first. This avoids
+    // depending on whichever guild happens to be first in the cache.
+    await syncType(guild,data,"player",client);
+    await syncType(guild,data,"clan",client);
+    await saveData(data);
+    console.log("🚫 Public blacklist embeds restored from persisted channel IDs.");
+  }
   catch(error){console.error("❌ Could not restore public blacklist embeds:",error);}
 }
 async function execute(interaction,context){
