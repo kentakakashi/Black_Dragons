@@ -316,6 +316,12 @@ async function handleRankButton(
         client
       );
 
+      try {
+        await require("../systems/leaderboards").refreshAll(client, data);
+      } catch (error) {
+        console.error("❌ Could not refresh live leaderboards after rank acceptance:", error);
+      }
+
       await interaction.editReply({
         content:
           "✅ **Application accepted.**",
