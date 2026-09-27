@@ -84,6 +84,12 @@ module.exports = {
 
     await saveData(data);
 
+    try {
+      await require("../systems/leaderboards").refreshAll(context.client, data);
+    } catch (error) {
+      console.error("❌ Could not refresh live leaderboards after kill update:", error);
+    }
+
     await interaction.reply({
       embeds:[
         new EmbedBuilder()
