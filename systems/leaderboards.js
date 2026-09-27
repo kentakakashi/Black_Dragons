@@ -46,9 +46,26 @@ function mention(id, role=false){
   return role ? "<@&"+String(id)+">" : "<@"+String(id)+">";
 }
 
-async function getRankingRoleState(client,data){
+async function resolveLeaderboardGuild(client,data){
   const cfg=ensure(data);
-  const guild=client?.guilds?.cache?.first();
+  const channelIds=[
+    cfg.rankingChannelId,
+    cfg.topKillsChannelId
+  ].filter(Boolean);
+
+  for(const channelId of channelIds){
+    try{
+      const channel=await client.channels.fetch(String(channelId));
+      if(channel?.guild) return channel.guild;
+    }catch{}
+  }
+
+  return client?.guilds?.cache?.first() || null;
+}
+
+async function getRankingRoleState(client,data,guildOverride=null){
+  const cfg=ensure(data);
+  const guild=guildOverride || await resolveLeaderboardGuild(client,data);
   const result=[];
   if(!guild) return result;
 
@@ -71,9 +88,9 @@ async function getRankingRoleState(client,data){
   return result;
 }
 
-async function rankingEmbed(client,data){
+async function rankingEmbed(client,data,guildOverride=null){
   const cfg=ensure(data);
-  const states=await getRankingRoleState(client,data);
+  const states=await getRankingRoleState(client,data,guildOverride);
   const e=new EmbedBuilder()
     .setColor(Number.isInteger(cfg.rankingColor)?cfg.rankingColor:DEFAULT_CONFIG.rankingColor)
     .setTitle(cfg.rankingTitle||DEFAULT_CONFIG.rankingTitle)
@@ -121,14 +138,15 @@ function rankingEditorEmbed(data,guild){
     .setFooter({text:"Firebase-backed configuration"});
 }
 
-function killsEmbed(data,client){
+function killsEmbed(data,client,guildOverride=null){
   const cfg=ensure(data);
   const users=Object.values(data.rankUsers||{})
     .filter(x=>x&&x.discordId)
     .sort((a,b)=>(Number(b.kills)||0)-(Number(a.kills)||0))
     .slice(0,25);
 
-  const icon=client?.guilds?.cache?.first()?.iconURL?.({size:256});
+  const icon=guildOverride?.iconURL?.({size:256,dynamic:true,extension:"png"})
+    || client?.guilds?.cache?.first()?.iconURL?.({size:256,dynamic:true,extension:"png"});
 
   const lines=users.length
     ? users.map((u,i)=>{
@@ -181,9 +199,10 @@ async function upsert(client,data,kind,embed){
 
 async function refreshAll(client,data){
   ensure(data);
+  const guild=await resolveLeaderboardGuild(client,data);
   const results={
-    ranking:await upsert(client,data,"ranking",await rankingEmbed(client,data)),
-    topKills:await upsert(client,data,"topKills",killsEmbed(data,client))
+    ranking:await upsert(client,data,"ranking",await rankingEmbed(client,data,guild)),
+    topKills:await upsert(client,data,"topKills",killsEmbed(data,client,guild))
   };
   if(results.ranking.ok||results.topKills.ok) await saveData(data);
   return results;
@@ -210,6 +229,7 @@ module.exports={
   TITLE_DEFINITIONS,
   DEFAULT_CONFIG,
   ensure,
+  resolveLeaderboardGuild,
   getRankingRoleState,
   rankingEmbed,
   rankingEditorEmbed,
