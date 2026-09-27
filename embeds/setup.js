@@ -39,7 +39,17 @@ const CATEGORIES = {
     { key: "blacklist_players", label: "Blacklisted Players Channel", type: "channel" },
     { key: "blacklist_clans", label: "Blacklisted Clans Channel", type: "channel" }
   ]},
-  leaderboards: { label: "Leaderboards", emoji: "🏆", description: "Permanent live ranking-title and top-kills channels.", settings: [
+  leaderboards: { label: "Leaderboards", emoji: "🏆", description: "Ranking-title role mapping plus permanent live leaderboard channels.", settings: [
+    { key: "leaderboard_role_shadow_monarch", label: "SHADOW MONARCH Role", type: "role" },
+    { key: "leaderboard_role_destruction_monarch", label: "DESTRUCTION MONARCH Role", type: "role" },
+    { key: "leaderboard_role_white_flame_monarch", label: "WHITE FLAME MONARCH Role", type: "role" },
+    { key: "leaderboard_role_frost_monarch", label: "FROST MONARCH Role", type: "role" },
+    { key: "leaderboard_role_plague_monarch", label: "PLAGUE MONARCH Role", type: "role" },
+    { key: "leaderboard_role_fang_monarch", label: "FANG MONARCH Role", type: "role" },
+    { key: "leaderboard_role_monarch_of_beginning", label: "MONARCH OF BEGINNING Role", type: "role" },
+    { key: "leaderboard_role_iron_body_monarch", label: "IRON BODY MONARCH Role", type: "role" },
+    { key: "leaderboard_role_transfiguration_monarch", label: "TRANSFIGURATION MONARCH Role", type: "role" },
+    { key: "leaderboard_role_rising_monarch", label: "RISING MONARCH Role", type: "role" },
     { key: "leaderboard_ranking_titles", label: "Ranking Titles Channel", type: "channel" },
     { key: "leaderboard_top_kills", label: "Top Kills Channel", type: "channel" }
   ]}
@@ -58,7 +68,9 @@ function currentValue(data, key) {
     blacklist_players:bl.playerChannelId, blacklist_clans:bl.clanChannelId,
     leaderboard_ranking_titles:lb.rankingChannelId, leaderboard_top_kills:lb.topKillsChannelId
   };
-  return key.startsWith("rank_role_") ? (r.rankRoleIds?.[key.replace("rank_role_","")] || null) : (map[key] || null);
+  if(key.startsWith("rank_role_")) return r.rankRoleIds?.[key.replace("rank_role_","")] || null;
+  if(key.startsWith("leaderboard_role_")) return lb.rankingRoleIds?.[key.replace("leaderboard_role_","")] || null;
+  return map[key] || null;
 }
 function valueText(data, s, guild) {
   const v=currentValue(data,s.key);
