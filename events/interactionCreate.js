@@ -259,6 +259,14 @@ module.exports =
             }
 
             /*
+             * Embed editor
+             */
+            if (customId.startsWith('embedit:')) {
+              const editor = require('../buttons/embedEditor');
+              if (await editor.handleButton(interaction)) return;
+            }
+
+            /*
              * Leaderboard
              */
             if (
@@ -299,7 +307,8 @@ module.exports =
           if (
             interaction.isChannelSelectMenu() ||
             interaction.isRoleSelectMenu() ||
-            interaction.isStringSelectMenu()
+            interaction.isStringSelectMenu() ||
+            interaction.isUserSelectMenu()
           ) {
             const customId =
               interaction.customId;
@@ -330,6 +339,19 @@ module.exports =
               ) {
                 return;
               }
+            }
+
+            /*
+             * Embed editor selects
+             */
+            if (interaction.isStringSelectMenu() && (customId.startsWith('embed:') || customId.startsWith('embedit:'))) {
+              const editor = require('../buttons/embedEditor');
+              if (await editor.handleSelect(interaction)) return;
+            }
+
+            if (interaction.isUserSelectMenu() && customId.startsWith('embedit:user:')) {
+              const editor = require('../buttons/embedEditor');
+              if (await editor.handleUserSelect(interaction)) return;
             }
 
             /*
@@ -390,6 +412,14 @@ module.exports =
               ) {
                 return;
               }
+            }
+
+            /*
+             * Embed editor modals
+             */
+            if (customId.startsWith('embedit:modal:')) {
+              const editor = require('../buttons/embedEditor');
+              if (await editor.handleModal(interaction)) return;
             }
 
             /*
