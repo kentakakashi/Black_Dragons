@@ -870,6 +870,19 @@ function reconcileData(
     ...localData.config,
     ...cloudData.config,
 
+    leaderboards: {
+      ...localData.config.leaderboards,
+      ...cloudData.config.leaderboards,
+      rankingRoleIds: {
+        ...(localData.config.leaderboards?.rankingRoleIds || {}),
+        ...(cloudData.config.leaderboards?.rankingRoleIds || {})
+      },
+      titles: {
+        ...(localData.config.leaderboards?.titles || {}),
+        ...(cloudData.config.leaderboards?.titles || {})
+      }
+    },
+
     helpDesk: {
       ...localData.config.helpDesk,
       ...cloudData.config.helpDesk
