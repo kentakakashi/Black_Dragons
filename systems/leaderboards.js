@@ -91,38 +91,25 @@ async function getRankingRoleState(client,data,guildOverride=null){
 async function rankingEmbed(client,data,guildOverride=null){
   const cfg=ensure(data);
   const states=await getRankingRoleState(client,data,guildOverride);
-  const e=new EmbedBuilder()
-    .setColor(Number.isInteger(cfg.rankingColor)?cfg.rankingColor:DEFAULT_CONFIG.rankingColor)
-    .setTitle(cfg.rankingTitle||DEFAULT_CONFIG.rankingTitle)
-    .setDescription(cfg.rankingDescription||DEFAULT_CONFIG.rankingDescription)
-    .setTimestamp()
-    .setFooter({text:"BLACK DRAGONS • TITLES • LIVE"});
 
-  for(const state of states){
-    const roleText=state.role
-      ? mention(state.role.id,true)
-      : state.roleId
-        ? "⚠️ Configured role unavailable"
-        : "⚙️ Role not configured";
-
+  const lines=states.map((state,index)=>{
     const holderText=state.holders.length
       ? state.holders.map(id=>mention(id)).join(", ")
-      : "👤 **VACANT**";
+      : "VACANT";
 
-    e.addFields({
-      name:state.title.emoji+" • "+state.title.name,
-      value:roleText+"\n"+holderText,
-      inline:false
-    });
-  }
+    return "**"+(index+1)+".** **"+state.title.name+"** — "+holderText;
+  });
 
-  if(!states.length){
-    e.setDescription((cfg.rankingDescription||DEFAULT_CONFIG.rankingDescription)+"\n\n⚙️ Configure the Ranking Title Roles in /setup → Leaderboards.");
-  }
+  const description=lines.length
+    ? lines.join("\n")
+    : "No ranking titles are configured yet.";
 
-  return e;
+  return new EmbedBuilder()
+    .setColor(Number.isInteger(cfg.rankingColor)?cfg.rankingColor:DEFAULT_CONFIG.rankingColor)
+    .setTitle(cfg.rankingTitle||DEFAULT_CONFIG.rankingTitle)
+    .setDescription(description)
+    .setFooter({text:"BLACK DRAGONS • TITLES • LIVE"});
 }
-
 function rankingEditorEmbed(data,guild){
   const cfg=ensure(data);
   const lines=TITLE_DEFINITIONS.map(t=>{
