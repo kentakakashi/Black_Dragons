@@ -1,12 +1,62 @@
-const { ChannelType } = require("discord.js");
 const { getHelpDeskConfig } = require("../utils/config");
 const { createDashboardEmbed, createDashboardButtons } = require("../embeds/helpDesk");
 const { saveData } = require("../utils/database");
 
+const REQUEST_RETENTION_MS = 6 * 60 * 60 * 1000;
+const CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
+
 let dashboardMessage = null;
+
+function isRequestCard(message, client) {
+  if (!message || !client?.user) return false;
+  if (message.author?.id !== client.user.id) return false;
+
+  const title = message.embeds?.[0]?.title;
+  return title === "WAR REQUEST" || title === "BACKUP REQUEST";
+}
+
+async function cleanupExpiredRequests(client, data) {
+  const config = getHelpDeskConfig(data);
+  if (!config.channelId) return 0;
+
+  try {
+    const channel = await client.channels.fetch(config.channelId);
+
+    if (!channel?.isTextBased() || !channel.messages) return 0;
+
+    const messages = await channel.messages.fetch({ limit: 100 });
+    const cutoff = Date.now() - REQUEST_RETENTION_MS;
+    let deleted = 0;
+
+    for (const message of messages.values()) {
+      if (!isRequestCard(message, client)) continue;
+      if (message.createdTimestamp > cutoff) continue;
+
+      try {
+        await message.delete("Black Dragons Help Desk request retention cleanup");
+        deleted++;
+      } catch (error) {
+        console.warn(
+          "⚠️ Could not delete expired Help Desk request " + message.id + ":",
+          error?.message || error
+        );
+      }
+    }
+
+    if (deleted > 0) {
+      console.log("🧹 Help Desk cleanup removed " + deleted + " expired request card(s).");
+    }
+
+    return deleted;
+  } catch (error) {
+    console.error("❌ Help Desk request cleanup failed:", error);
+    return 0;
+  }
+}
 
 async function setupDashboard(client, data) {
   const config = getHelpDeskConfig(data);
+
   if (!config.channelId) {
     console.log("ℹ️ Help Desk channel is not configured. Use /setup.");
     return null;
@@ -28,11 +78,12 @@ async function setupDashboard(client, data) {
         return dashboardMessage;
       } catch {
         data.dashboardMessageId = null;
-        saveData(data);
+        await saveData(data);
       }
     }
 
     const messages = await channel.messages.fetch({ limit: 50 });
+
     dashboardMessage = messages.find(message =>
       message.author.id === client.user.id &&
       message.components.some(row =>
@@ -42,7 +93,7 @@ async function setupDashboard(client, data) {
 
     if (dashboardMessage) {
       data.dashboardMessageId = dashboardMessage.id;
-      saveData(data);
+      await saveData(data);
       await updateDashboard(client, data);
       console.log("✅ Existing dashboard found and updated.");
       return dashboardMessage;
@@ -54,7 +105,7 @@ async function setupDashboard(client, data) {
     });
 
     data.dashboardMessageId = dashboardMessage.id;
-    saveData(data);
+    await saveData(data);
 
     console.log("✅ New Help Desk dashboard created.");
     return dashboardMessage;
@@ -77,4 +128,21 @@ async function updateDashboard(client, data) {
   }
 }
 
-module.exports = { setupDashboard, updateDashboard };
+function startCleanupWatcher(client, data) {
+  const run = () => cleanupExpiredRequests(client, data).catch(() => {});
+
+  run();
+
+  const timer = setInterval(run, CLEANUP_INTERVAL_MS);
+
+  if (timer.unref) timer.unref();
+
+  return timer;
+}
+
+module.exports = {
+  setupDashboard,
+  updateDashboard,
+  cleanupExpiredRequests,
+  startCleanupWatcher
+};
