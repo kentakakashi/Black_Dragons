@@ -172,7 +172,12 @@ async function upsert(client,data,kind,embed){
     try{message=await channel.messages.fetch(String(cfg[messageKey]));}catch{}
   }
 
-  const payload={embeds:[embed],allowedMentions:{parse:[]}};
+  // Explicitly allow only the user mentions present in the leaderboard embed.
+  // Without this, Discord leaves <@USER_ID> unresolved and displays the raw ID.
+  const holderIds = kind === "ranking"
+    ? (await getRankingRoleState(client,data)).flatMap(state => state.holders)
+    : [];
+  const payload={embeds:[embed],allowedMentions:{parse:[],users:[...new Set(holderIds.map(String))]}};
   if(message){
     await message.edit(payload);
   }else{
