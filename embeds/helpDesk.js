@@ -22,9 +22,9 @@ function createDashboardEmbed(data) {
     .addFields({
       name: "📊 TODAY'S CALLS",
       value:
-        `⚔️ **War** — \`${data.war}\`\n` +
-        `🛡️ **Backup** — \`${data.backup}\`\n` +
-        `🐉 **Total** — \`${total}\``
+        "⚔️ **War** — `" + data.war + "`\n" +
+        "🛡️ **Backup** — `" + data.backup + "`\n" +
+        "🐉 **Total** — `" + total + "`"
     })
     .setFooter({ text: "Black Dragons • United by strength • Fearless in battle" });
 
@@ -51,30 +51,24 @@ function createRequestEmbed(type, user, details) {
   const isWar = type === "war";
 
   return new EmbedBuilder()
-    .setColor(isWar ? 0xED4245 : 0x5865F2)
-    .setTitle(isWar ? "⚔️ WAR REQUEST" : "🛡️ BACKUP REQUEST")
-    .setDescription(
-      isWar
-        ? `${user} has requested a **WAR**.\n\nIf you're available, join up and assist.`
-        : `${user} has requested **BACKUP**.\n\nIf you're available, join up and assist.`
-    )
+    .setColor(isWar ? 0xA61B1B : 0x3F6FB5)
+    .setTitle(isWar ? "WAR REQUEST" : "BACKUP REQUEST")
     .addFields(
-      { name: "🌍 Region", value: details.region },
-      { name: "👤 Requested By", value: `${user}` },
-      { name: "👥 Clan / People", value: details.clan },
-      { name: "📝 Reason", value: details.reason },
-      { name: "🔗 Server Link", value: details.serverLink }
+      { name: "Requested By", value: String(user), inline: true },
+      { name: "Region", value: details.region, inline: true },
+      { name: "Targets", value: details.clan },
+      { name: "Reason", value: details.reason },
+      { name: "Server / Game", value: details.serverLink }
     )
-    .setTimestamp();
+    .setFooter({ text: "Black Dragons • Help Desk" });
 }
 
 function createEndButton() {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId("end_request")
-      .setLabel("END")
-      .setEmoji("🛑")
-      .setStyle(ButtonStyle.Danger)
+      .setLabel("End Request")
+      .setStyle(ButtonStyle.Secondary)
   );
 }
 
