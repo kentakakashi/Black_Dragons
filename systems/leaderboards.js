@@ -79,11 +79,19 @@ async function getRankingRoleState(client,data,guildOverride=null){
     if(roleId){
       try{role=await guild.roles.fetch(String(roleId));}catch{}
     }
-    const holders=role
-      ? [...role.members.values()].map(member=>String(member.id))
+    const holderMembers=role
+      ? [...role.members.values()]
       : [];
 
-    result.push({title,roleId:roleId?String(roleId):null,role,holders});
+    const holders=holderMembers.map(member=>String(member.id));
+
+    result.push({
+      title,
+      roleId:roleId?String(roleId):null,
+      role,
+      holders,
+      holderMembers
+    });
   }
   return result;
 }
@@ -178,8 +186,45 @@ async function upsert(client,data,kind,embed){
   if(!channel||!channel.isTextBased())return {ok:false,reason:"INVALID_CHANNEL"};
 
   let message=null;
+
+  // First try the persisted message ID.
   if(cfg[messageKey]){
-    try{message=await channel.messages.fetch(String(cfg[messageKey]));}catch{}
+    try{
+      message=await channel.messages.fetch(String(cfg[messageKey]));
+    }catch{
+      message=null;
+    }
+  }
+
+  // If the saved ID is missing/stale, recover the existing leaderboard
+  // instead of creating another copy. This also repairs old data where the
+  // message ID was not persisted correctly.
+  if(!message){
+    try{
+      const recent=await channel.messages.fetch({limit:100});
+      const footerMarker=kind==="ranking"
+        ? "BLACK DRAGONS • TITLES • LIVE"
+        : "BLACK DRAGONS • LIVE • TOP";
+
+      const matches=[...recent.values()].filter(candidate=>{
+        if(candidate.author?.id!==client.user?.id) return false;
+        const embed=candidate.embeds?.[0];
+        const footer=embed?.footer?.text || "";
+        return footer===footerMarker;
+      }).sort((a,b)=>Number(b.createdTimestamp)-Number(a.createdTimestamp));
+
+      if(matches.length){
+        message=matches[0];
+
+        // Clean up duplicate copies created by earlier broken refreshes.
+        for(const duplicate of matches.slice(1)){
+          try{await duplicate.delete();}catch{}
+        }
+
+        cfg[messageKey]=message.id;
+        await saveData(data);
+      }
+    }catch{}
   }
 
   // Keep the persistent leaderboard clean: role/user mentions are displayed
@@ -210,6 +255,13 @@ async function upsert(client,data,kind,embed){
 
   if(message){
     await message.edit(payload);
+
+    // If we recovered a message after a stale/missing ID, persist the repaired
+    // ID so future live refreshes always edit this same message.
+    if(cfg[messageKey]!==message.id){
+      cfg[messageKey]=message.id;
+      await saveData(data);
+    }
   }else{
     message=await channel.send(payload);
     cfg[messageKey]=message.id;
