@@ -18,13 +18,25 @@ module.exports = function registerLiveLeaderboards(client) {
     return [...member.roles.cache.keys()].some(id => roleIds.has(String(id)));
   }
 
+  let refreshPromise=null;
+
   async function refresh(guild) {
-    try {
-      if (!client.appData?.config?.leaderboards?.rankingChannelId) return;
-      await leaderboards.refreshAll(client, client.appData);
-    } catch (error) {
-      console.error("❌ Live leaderboard refresh failed:", error);
-    }
+    // Prevent two role events arriving at nearly the same time from both
+    // trying to create/recover the persistent leaderboard message.
+    if(refreshPromise) return refreshPromise;
+
+    refreshPromise=(async()=>{
+      try {
+        if (!client.appData?.config?.leaderboards?.rankingChannelId) return;
+        await leaderboards.refreshAll(client, client.appData);
+      } catch (error) {
+        console.error("❌ Live leaderboard refresh failed:", error);
+      } finally {
+        refreshPromise=null;
+      }
+    })();
+
+    return refreshPromise;
   }
 
   // Fires when a member gains/removes a role.
