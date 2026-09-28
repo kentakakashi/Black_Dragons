@@ -97,7 +97,13 @@ async function rankingEmbed(client,data,guildOverride=null){
       ? state.holders.map(id=>mention(id)).join(", ")
       : "VACANT";
 
-    return "**"+(index+1)+".** **"+state.title.name+"** — "+holderText;
+    // Use the actual Discord role configured in /setup → Leaderboards.
+    // Role#toString() produces a real <@&ROLE_ID> role mention.
+    const titleText=state.role
+      ? state.role.toString()
+      : "**"+state.title.name+"**";
+
+    return "**"+(index+1)+".** "+titleText+" — "+holderText;
   });
 
   const description=lines.length
@@ -172,12 +178,38 @@ async function upsert(client,data,kind,embed){
     try{message=await channel.messages.fetch(String(cfg[messageKey]));}catch{}
   }
 
-  // Explicitly allow only the user mentions present in the leaderboard embed.
-  // Without this, Discord leaves <@USER_ID> unresolved and displays the raw ID.
-  const holderIds = kind === "ranking"
-    ? (await getRankingRoleState(client,data)).flatMap(state => state.holders)
+  // Explicitly allow only the user and configured Monarch-role mentions used
+  // by the leaderboard. Discord role mentions are controlled through the
+  // allowedMentions.roles whitelist.
+  const rankingStates = kind === "ranking"
+    ? await getRankingRoleState(client,data)
     : [];
-  const payload={embeds:[embed],allowedMentions:{parse:[],users:[...new Set(holderIds.map(String))]}};
+  const holderIds = rankingStates.flatMap(state => state.holders);
+  const roleIds = rankingStates
+    .map(state => state.roleId)
+    .filter(Boolean);
+
+  const roleMentions = [...new Set(roleIds.map(String))]
+    .map(id => "<@&"+id+">")
+    .join(" ");
+
+  const payload={
+    embeds:[embed],
+    allowedMentions:{
+      parse:[],
+      users:[...new Set(holderIds.map(String))],
+      roles:[...new Set(roleIds.map(String))]
+    }
+  };
+
+  // Put the role mentions in message content as well as the embed.
+  // Mentions inside embeds render visually but do not generate a role
+  // notification. The content mention is what makes Discord actually ping
+  // the configured Monarch roles.
+  if(kind === "ranking" && roleMentions){
+    payload.content=roleMentions;
+  }
+
   if(message){
     await message.edit(payload);
   }else{
