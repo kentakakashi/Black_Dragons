@@ -11,7 +11,10 @@ const {
   checkDailyReset
 } = require("../utils/database");
 
-const {\n  setupDashboard,\n  startCleanupWatcher\n} = require("../systems/helpDesk");
+const {
+  setupDashboard,
+  startCleanupWatcher
+} = require("../systems/helpDesk");
 
 const {
   sendRankPanel,
@@ -79,7 +82,15 @@ module.exports =
         ==========================================
         */
 
-        await setupDashboard(\n          client,\n          client.appData\n        );\n\n        startCleanupWatcher(\n          client,\n          client.appData\n        );
+        await setupDashboard(
+          client,
+          client.appData
+        );
+
+        startCleanupWatcher(
+          client,
+          client.appData
+        );
 
         /*
         ==========================================
