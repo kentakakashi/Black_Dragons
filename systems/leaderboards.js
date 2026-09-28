@@ -191,6 +191,11 @@ async function upsert(client,data,kind,embed){
     .filter(Boolean);
 
   const payload={
+    // Explicitly clear old message content. Discord keeps existing content
+    // when "content" is omitted from an edit, so simply removing the old
+    // role-mention block from the code is not enough for the already-published
+    // leaderboard message.
+    content: "",
     embeds:[embed],
     allowedMentions:{
       parse:[],
