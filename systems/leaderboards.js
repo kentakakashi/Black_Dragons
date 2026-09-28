@@ -101,12 +101,11 @@ async function rankingEmbed(client,data,guildOverride=null){
   const states=await getRankingRoleState(client,data,guildOverride);
 
   const lines=states.map((state,index)=>{
-    // Use the member's display name as plain text here instead of a user
-    // mention. Discord mobile clients can show raw <@USER_ID> text inside
-    // embeds when that user is not cached on the device. The leaderboard
-    // should never expose raw IDs.
+    // Use the fetched GuildMember's native mention string so the holder
+    // is a real clickable Discord user mention, not plain text.
+    // GuildMember#toString() returns the proper <@USER_ID> mention format.
     const holderText=state.holderMembers?.length
-      ? state.holderMembers.map(member => "@"+String(member.displayName || member.user?.username || "Unknown")).join(", ")
+      ? state.holderMembers.map(member => member.toString()).join(", ")
       : "VACANT";
 
     // Use the actual Discord role configured in /setup → Leaderboards.
