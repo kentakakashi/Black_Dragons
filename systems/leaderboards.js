@@ -93,8 +93,12 @@ async function rankingEmbed(client,data,guildOverride=null){
   const states=await getRankingRoleState(client,data,guildOverride);
 
   const lines=states.map((state,index)=>{
-    const holderText=state.holders.length
-      ? state.holders.map(id=>mention(id)).join(", ")
+    // Use the member's display name as plain text here instead of a user
+    // mention. Discord mobile clients can show raw <@USER_ID> text inside
+    // embeds when that user is not cached on the device. The leaderboard
+    // should never expose raw IDs.
+    const holderText=state.holderMembers?.length
+      ? state.holderMembers.map(member => "@"+String(member.displayName || member.user?.username || "Unknown")).join(", ")
       : "VACANT";
 
     // Use the actual Discord role configured in /setup → Leaderboards.
@@ -103,7 +107,7 @@ async function rankingEmbed(client,data,guildOverride=null){
       ? state.role.toString()
       : "**"+state.title.name+"**";
 
-    return "**"+(index+1)+".** "+titleText+" — "+holderText;
+    return "**"+(index+1)+".** "+titleText+" : "+holderText;
   });
 
   const description=lines.length
