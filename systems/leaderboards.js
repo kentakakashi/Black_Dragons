@@ -178,9 +178,10 @@ async function upsert(client,data,kind,embed){
     try{message=await channel.messages.fetch(String(cfg[messageKey]));}catch{}
   }
 
-  // Explicitly allow only the user and configured Monarch-role mentions used
-  // by the leaderboard. Discord role mentions are controlled through the
-  // allowedMentions.roles whitelist.
+  // Keep the persistent leaderboard clean: role/user mentions are displayed
+  // in the embed itself. Do NOT dump all configured Monarch roles into the
+  // message content on every refresh/edit, or Discord will show a giant block
+  // of role mentions above the embed and may repeatedly notify those roles.
   const rankingStates = kind === "ranking"
     ? await getRankingRoleState(client,data)
     : [];
@@ -188,10 +189,6 @@ async function upsert(client,data,kind,embed){
   const roleIds = rankingStates
     .map(state => state.roleId)
     .filter(Boolean);
-
-  const roleMentions = [...new Set(roleIds.map(String))]
-    .map(id => "<@&"+id+">")
-    .join(" ");
 
   const payload={
     embeds:[embed],
@@ -201,14 +198,6 @@ async function upsert(client,data,kind,embed){
       roles:[...new Set(roleIds.map(String))]
     }
   };
-
-  // Put the role mentions in message content as well as the embed.
-  // Mentions inside embeds render visually but do not generate a role
-  // notification. The content mention is what makes Discord actually ping
-  // the configured Monarch roles.
-  if(kind === "ranking" && roleMentions){
-    payload.content=roleMentions;
-  }
 
   if(message){
     await message.edit(payload);
