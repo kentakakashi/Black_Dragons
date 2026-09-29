@@ -4,12 +4,15 @@ const {
   ButtonStyle,
   EmbedBuilder,
   UserSelectMenuBuilder,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle
 }=require("discord.js");
 
 const {saveData}=require("../utils/database");
+const logging=require("./logging/logger");
 
 const sessions=new Map();
 
@@ -92,6 +95,639 @@ function moderationDurationText(expiresAt){
   if(!expiresAt)return "Permanent";
   return "<t:"+Math.floor(Number(expiresAt)/1000)+":R>";
 }
+
+function moderationCases(data){
+  const m=cleanupModeration(data);
+  const entries=[];
+
+  for(const [userId,cases] of Object.entries(m)){
+    if(!Array.isArray(cases))continue;
+
+    for(const entry of cases){
+      if(!entry)continue;
+      entries.push({...entry,userId:String(entry.userId||userId)});
+    }
+  }
+
+  entries.sort((a,b)=>{
+    const an=Number(a.caseNumber||0);
+    const bn=Number(b.caseNumber||0);
+    if(an&&bn)return an-bn;
+    if(an)return -1;
+    if(bn)return 1;
+    return Number(a.createdAt||0)-Number(b.createdAt||0);
+  });
+
+  return entries;
+}
+
+function findModerationCase(data,caseId){
+  const id=String(caseId||"");
+  const m=cleanupModeration(data);
+
+  for(const [userId,cases] of Object.entries(m)){
+    if(!Array.isArray(cases))continue;
+
+    const index=cases.findIndex(x=>String(x?.id||"")===id);
+    if(index>=0){
+      return {
+        userId:String(cases[index]?.userId||userId),
+        cases,
+        index,
+        entry:cases[index]
+      };
+    }
+  }
+
+  return null;
+}
+
+function nextModerationCaseNumber(data){
+  store(data);
+  const current=Number(data.tryouts.moderationCaseCounter||0);
+  const next=Number.isFinite(current)&&current>=0?Math.floor(current)+1:1;
+  data.tryouts.moderationCaseCounter=next;
+  return next;
+}
+
+function moderationCaseListEmbed(entries,page,totalPages){
+  const start=page*25;
+  const shown=entries.slice(start,start+25);
+
+  const embed=new EmbedBuilder()
+    .setColor(0x8B0000)
+    .setTitle("🛡️ BLACK DRAGONS • MODERATION CASES")
+    .setDescription(shown.length
+      ?"Select a case below to view its full details and manage it."
+      :"There are currently no active moderation cases.")
+    .setFooter({text:"BLACK DRAGONS • Moderation Case Management"})
+    .setTimestamp();
+
+  if(shown.length){
+    embed.addFields({
+      name:"📋 Cases • Page "+(page+1)+"/"+totalPages,
+      value:shown.map(x=>
+        "**Case "+String(x.caseNumber||"?")+"** • "+String(x.id||"UNKNOWN")+" • <@"+String(x.userId)+"> • "+moderationTypeLabel(x.type)
+      ).join("\n")
+    });
+  }
+
+  if(entries.length>25){
+    embed.addFields({
+      name:"📚 Total Cases",
+      value:"**"+entries.length+"** active moderation cases."
+    });
+  }
+
+  return embed;
+}
+
+function moderationCaseListComponents(entries,page){
+  const totalPages=Math.max(1,Math.ceil(entries.length/25));
+  const shown=entries.slice(page*25,page*25+25);
+  const rows=[];
+
+  if(shown.length){
+    const menu=new StringSelectMenuBuilder()
+      .setCustomId("modcase:select")
+      .setPlaceholder("Select a moderation case")
+      .setMinValues(1)
+      .setMaxValues(1)
+      .addOptions(
+        shown.map(x=>
+          new StringSelectMenuOptionBuilder()
+            .setLabel("Case "+String(x.caseNumber||"?")+" • "+String(x.id||"UNKNOWN"))
+            .setDescription("<@"+String(x.userId)+"> • "+moderationTypeLabel(x.type))
+            .setValue(String(x.id))
+        )
+      );
+
+    rows.push(new ActionRowBuilder().addComponents(menu));
+  }
+
+  if(totalPages>1){
+    const prev=new ButtonBuilder()
+      .setCustomId("modcase:page:"+(page-1))
+      .setLabel("PREVIOUS")
+      .setEmoji("⬅️")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(page<=0);
+
+    const next=new ButtonBuilder()
+      .setCustomId("modcase:page:"+(page+1))
+      .setLabel("NEXT")
+      .setEmoji("➡️")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(page>=totalPages-1);
+
+    rows.push(new ActionRowBuilder().addComponents(prev,next));
+  }
+
+  return rows;
+}
+
+function moderationCaseDetailEmbed(guild,entry){
+  const member=guild.members.cache.get(String(entry.userId));
+  const name=member?member.user.tag:"User "+entry.userId;
+
+  return new EmbedBuilder()
+    .setColor(0x8B0000)
+    .setTitle("🛡️ MODERATION CASE "+String(entry.caseNumber||"?"))
+    .setDescription(
+      "**Case ID:** "+String(entry.id||"UNKNOWN")+"\n"+
+      "**Player:** <@"+String(entry.userId)+"> ("+name+")\n\n"+
+      "Use the buttons below to delete this case or edit its punishment."
+    )
+    .addFields(
+      {name:"⚖️ Punishment",value:moderationTypeLabel(entry.type),inline:true},
+      {name:"⏳ Duration",value:moderationDurationText(entry.expiresAt),inline:true},
+      {name:"📝 Reason",value:String(entry.reason||"No reason provided"),inline:false},
+      {name:"👮 Issued By",value:"<@"+String(entry.issuedBy||"unknown")+">",inline:true},
+      {name:"📅 Issued",value:"<t:"+Math.floor(Number(entry.createdAt||Date.now())/1000)+":F>",inline:true},
+      ...(entry.editedAt?[{name:"✏️ Last Edited",value:"<t:"+Math.floor(Number(entry.editedAt)/1000)+":F> by <@"+String(entry.editedBy||"unknown")+">",inline:false}]:[])
+    )
+    .setFooter({text:"BLACK DRAGONS • Moderation Case"});
+}
+
+function moderationCaseDetailComponents(entry,page){
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("modcase:delete:"+entry.id)
+        .setLabel("DELETE CASE")
+        .setEmoji("🗑️")
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId("modcase:edit:"+entry.id+":"+page)
+        .setLabel("EDIT CASE")
+        .setEmoji("✏️")
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId("modcase:back:"+page)
+        .setLabel("BACK TO CASE LIST")
+        .setStyle(ButtonStyle.Secondary)
+    )
+  ];
+}
+
+function moderationEditEmbed(guild,entry){
+  const member=guild.members.cache.get(String(entry.userId));
+  return new EmbedBuilder()
+    .setColor(0x5865F2)
+    .setTitle("✏️ EDIT MODERATION CASE "+String(entry.caseNumber||"?"))
+    .setDescription(
+      "Choose how you want to change this case.\n\n"+
+      "**Change Punishment** lets you switch between **Timeout**, **Temporary Ban**, and **Permanent Ban**.\n"+
+      "**Change Duration** lets you increase or decrease the current Timeout or Temporary Ban duration.\n\n"+
+      "**Player:** "+(member?member.toString():"<@"+String(entry.userId)+">")+"\n"+
+      "**Current Punishment:** "+moderationTypeLabel(entry.type)+"\n"+
+      "**Current Duration:** "+moderationDurationText(entry.expiresAt)
+    )
+    .setFooter({text:"BLACK DRAGONS • Moderation Case Editor"})
+    .setTimestamp();
+}
+
+function moderationEditComponents(entry,page){
+  const options=[
+    new StringSelectMenuOptionBuilder().setLabel("Change Punishment").setDescription("Switch to Timeout, Temporary Ban, or Permanent Ban.").setValue("punishment")
+  ];
+
+  if(entry.type==="timeout"||entry.type==="ban"){
+    options.push(
+      new StringSelectMenuOptionBuilder().setLabel("Change Duration").setDescription("Increase or decrease the current duration.").setValue("duration")
+    );
+  }
+
+  return [
+    new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId("modedit:action:"+entry.id+":"+page)
+        .setPlaceholder("Choose what to edit")
+        .setMinValues(1)
+        .setMaxValues(1)
+        .addOptions(options)
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("modcase:back:"+page)
+        .setLabel("← BACK TO CASE")
+        .setStyle(ButtonStyle.Secondary)
+    )
+  ];
+}
+
+function moderationPunishmentComponents(caseId,page){
+  return [
+    new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId("modedit:type:"+caseId+":"+page)
+        .setPlaceholder("Choose the new punishment")
+        .setMinValues(1)
+        .setMaxValues(1)
+        .addOptions(
+          new StringSelectMenuOptionBuilder().setLabel("Timeout").setDescription("Temporarily restrict the player.").setValue("timeout"),
+          new StringSelectMenuOptionBuilder().setLabel("Temporary Ban").setDescription("Temporarily ban the player from tryouts.").setValue("ban"),
+          new StringSelectMenuOptionBuilder().setLabel("Permanent Ban").setDescription("Permanently ban the player from tryouts.").setValue("permban")
+        )
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("modcase:back:"+page)
+        .setLabel("← BACK TO CASE")
+        .setStyle(ButtonStyle.Secondary)
+    )
+  ];
+}
+
+function moderationDurationModal(caseId,type,currentMinutes=null){
+  const title=type==="duration"?"Change Moderation Duration":"Set "+(type==="timeout"?"Timeout":"Temporary Ban")+" Duration";
+  const value=currentMinutes?String(currentMinutes):"";
+
+  return new ModalBuilder()
+    .setCustomId("modedit:modal:"+caseId+":"+type)
+    .setTitle(title)
+    .addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("duration_minutes")
+          .setLabel("Duration in minutes")
+          .setPlaceholder("Example: 5760 = 4 days")
+          .setStyle(TextInputStyle.Short)
+          .setMinLength(1)
+          .setMaxLength(5)
+          .setRequired(true)
+          .setValue(value)
+      ),
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("reason")
+          .setLabel("Reason (optional)")
+          .setPlaceholder("Leave blank to keep the current reason.")
+          .setStyle(TextInputStyle.Paragraph)
+          .setMaxLength(500)
+          .setRequired(false)
+      )
+    );
+}
+
+function moderationReasonModal(caseId){
+  return new ModalBuilder()
+    .setCustomId("modedit:modal:"+caseId+":permban")
+    .setTitle("Edit Permanent Ban")
+    .addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId("reason")
+          .setLabel("Reason (optional)")
+          .setPlaceholder("Leave blank to keep the current reason.")
+          .setStyle(TextInputStyle.Paragraph)
+          .setMaxLength(500)
+          .setRequired(false)
+      )
+    );
+}
+
+async function logModerationAction(guild,data,title,description,fields=[]){
+  try{
+    const embed=new EmbedBuilder()
+      .setColor(0xED4245)
+      .setTitle("🛡️ BLACK DRAGONS • "+title)
+      .setDescription(description)
+      .addFields(...fields)
+      .setTimestamp();
+
+    await logging.send(guild,data,"moderation",embed);
+  }catch(error){
+    console.error("❌ Tryout moderation audit log failed:",error);
+  }
+}
+
+async function listModerationCases(i,c){
+  if(!isTryoutStaff(i,c.data)){
+    await i.reply({
+      content:"❌ Only an Administrator or the configured **Tryout Staff** role can view moderation cases.",
+      ephemeral:true
+    });
+    return true;
+  }
+
+  const entries=moderationCases(c.data);
+  const totalPages=Math.max(1,Math.ceil(entries.length/25));
+
+  await i.reply({
+    embeds:[moderationCaseListEmbed(entries,0,totalPages)],
+    components:moderationCaseListComponents(entries,0),
+    ephemeral:true
+  });
+
+  return true;
+}
+
+async function deleteModerationCase(i,c,caseId,page=0){
+  if(!isTryoutStaff(i,c.data)){
+    await i.reply({content:"❌ Only an Administrator or the configured **Tryout Staff** role can manage moderation cases.",ephemeral:true});
+    return true;
+  }
+
+  const found=findModerationCase(c.data,caseId);
+  if(!found){
+    await i.reply({content:"❌ That moderation case no longer exists or has expired.",ephemeral:true});
+    return true;
+  }
+
+  const entry={...found.entry};
+  const userId=String(found.userId);
+  const m=moderationStore(c.data);
+
+  found.cases.splice(found.index,1);
+  if(!found.cases.length)delete m[userId];
+
+  const active=store(c.data).active;
+  if(active?.moderatedUserIds?.includes(userId)&&activeModerationCases(c.data,userId).length===0){
+    active.moderatedUserIds=active.moderatedUserIds.filter(x=>String(x)!==userId);
+  }
+
+  await saveData(c.data);
+
+  await logModerationAction(
+    i.guild,
+    c.data,
+    "MODERATION CASE DELETED",
+    "A moderation case was removed. The deleted case no longer restricts the player.",
+    [
+      {name:"🆔 Case",value:"Case "+String(entry.caseNumber||"?")+" • "+String(entry.id),inline:true},
+      {name:"👤 Player",value:"<@"+userId+">",inline:true},
+      {name:"⚖️ Punishment",value:moderationTypeLabel(entry.type),inline:true},
+      {name:"📝 Reason",value:String(entry.reason||"No reason provided"),inline:false},
+      {name:"🛡️ Deleted By",value:"<@"+i.user.id+">",inline:true}
+    ]
+  );
+
+  const entries=moderationCases(c.data);
+  const totalPages=Math.max(1,Math.ceil(entries.length/25));
+  const safePage=Math.min(Math.max(Number(page)||0,totalPages-1),totalPages-1);
+
+  await i.update({
+    embeds:[moderationCaseListEmbed(entries,safePage,totalPages)],
+    components:moderationCaseListComponents(entries,safePage)
+  });
+
+  return true;
+}
+
+async function handleModerationButton(i,c){
+  const id=i.customId;
+
+  if(id.startsWith("modcase:delete:")){
+    return deleteModerationCase(i,c,id.slice("modcase:delete:".length));
+  }
+
+  if(id.startsWith("modcase:edit:")){
+    if(!isTryoutStaff(i,c.data)){
+      await i.reply({content:"❌ Only an Administrator or the configured **Tryout Staff** role can manage moderation cases.",ephemeral:true});
+      return true;
+    }
+
+    const parts=id.split(":");
+    const caseId=parts[2];
+    const page=Number(parts[3]||0);
+    const found=findModerationCase(c.data,caseId);
+
+    if(!found){
+      await i.reply({content:"❌ That moderation case no longer exists or has expired.",ephemeral:true});
+      return true;
+    }
+
+    await i.update({
+      embeds:[moderationEditEmbed(i.guild,found.entry)],
+      components:moderationEditComponents(found.entry,page)
+    });
+
+    return true;
+  }
+
+  if(id.startsWith("modcase:back:")){
+    if(!isTryoutStaff(i,c.data)){
+      await i.reply({content:"❌ Only an Administrator or the configured **Tryout Staff** role can manage moderation cases.",ephemeral:true});
+      return true;
+    }
+
+    const page=Number(id.split(":")[2]||0);
+    const entries=moderationCases(c.data);
+    const totalPages=Math.max(1,Math.ceil(entries.length/25));
+    const safePage=Math.min(Math.max(page,0),totalPages-1);
+
+    await i.update({
+      embeds:[moderationCaseListEmbed(entries,safePage,totalPages)],
+      components:moderationCaseListComponents(entries,safePage)
+    });
+
+    return true;
+  }
+
+  if(id.startsWith("modcase:page:")){
+    if(!isTryoutStaff(i,c.data)){
+      await i.reply({content:"❌ Only an Administrator or the configured **Tryout Staff** role can view moderation cases.",ephemeral:true});
+      return true;
+    }
+
+    const page=Math.max(0,Number(id.split(":")[2]||0));
+    const entries=moderationCases(c.data);
+    const totalPages=Math.max(1,Math.ceil(entries.length/25));
+    const safePage=Math.min(page,totalPages-1);
+
+    await i.update({
+      embeds:[moderationCaseListEmbed(entries,safePage,totalPages)],
+      components:moderationCaseListComponents(entries,safePage)
+    });
+
+    return true;
+  }
+
+  return false;
+}
+
+async function handleModerationSelect(i,c){
+  const id=i.customId;
+
+  if(id==="modcase:select"){
+    if(!isTryoutStaff(i,c.data)){
+      await i.reply({content:"❌ Only an Administrator or the configured **Tryout Staff** role can view moderation cases.",ephemeral:true});
+      return true;
+    }
+
+    const found=findModerationCase(c.data,i.values[0]);
+    if(!found){
+      await i.reply({content:"❌ That moderation case no longer exists or has expired.",ephemeral:true});
+      return true;
+    }
+
+    await i.update({
+      embeds:[moderationCaseDetailEmbed(i.guild,found.entry)],
+      components:moderationCaseDetailComponents(found.entry,0)
+    });
+
+    return true;
+  }
+
+  if(id.startsWith("modedit:action:")){
+    if(!isTryoutStaff(i,c.data)){
+      await i.reply({content:"❌ Only an Administrator or the configured **Tryout Staff** role can edit moderation cases.",ephemeral:true});
+      return true;
+    }
+
+    const parts=id.split(":");
+    const caseId=parts[2];
+    const page=Number(parts[3]||0);
+    const found=findModerationCase(c.data,caseId);
+
+    if(!found){
+      await i.reply({content:"❌ That moderation case no longer exists or has expired.",ephemeral:true});
+      return true;
+    }
+
+    const action=i.values[0];
+
+    if(action==="duration"){
+      const minutes=found.entry.expiresAt
+        ?Math.max(1,Math.ceil((Number(found.entry.expiresAt)-Date.now())/60000))
+        :null;
+
+      await i.showModal(moderationDurationModal(caseId,"duration",minutes));
+      return true;
+    }
+
+    await i.update({
+      embeds:[
+        new EmbedBuilder()
+          .setColor(0x5865F2)
+          .setTitle("⚖️ CHANGE PUNISHMENT • CASE "+String(found.entry.caseNumber||"?"))
+          .setDescription("Choose the new punishment for **Case "+String(found.entry.caseNumber||"?")+"**.\n\nThe next step will ask for a duration when the selected punishment is temporary.")
+      ],
+      components:moderationPunishmentComponents(caseId,page)
+    });
+
+    return true;
+  }
+
+  if(id.startsWith("modedit:type:")){
+    if(!isTryoutStaff(i,c.data)){
+      await i.reply({content:"❌ Only an Administrator or the configured **Tryout Staff** role can edit moderation cases.",ephemeral:true});
+      return true;
+    }
+
+    const parts=id.split(":");
+    const caseId=parts[2];
+    const found=findModerationCase(c.data,caseId);
+
+    if(!found){
+      await i.reply({content:"❌ That moderation case no longer exists or has expired.",ephemeral:true});
+      return true;
+    }
+
+    const type=i.values[0];
+
+    if(type==="permban"){
+      await i.showModal(moderationReasonModal(caseId));
+      return true;
+    }
+
+    const currentMinutes=found.entry.expiresAt
+      ?Math.max(1,Math.ceil((Number(found.entry.expiresAt)-Date.now())/60000))
+      :null;
+
+    await i.showModal(moderationDurationModal(caseId,type,currentMinutes));
+    return true;
+  }
+
+  return false;
+}
+
+async function handleModerationModal(i,c){
+  if(!i.customId.startsWith("modedit:modal:"))return false;
+
+  if(!isTryoutStaff(i,c.data)){
+    await i.reply({content:"❌ Only an Administrator or the configured **Tryout Staff** role can edit moderation cases.",ephemeral:true});
+    return true;
+  }
+
+  const parts=i.customId.split(":");
+  const caseId=parts[2];
+  const mode=parts[3];
+  const found=findModerationCase(c.data,caseId);
+
+  if(!found){
+    await i.reply({content:"❌ That moderation case no longer exists or has expired.",ephemeral:true});
+    return true;
+  }
+
+  await i.deferReply({ephemeral:true});
+
+  try{
+    const old={...found.entry};
+    let nextType=old.type;
+    let nextExpiresAt=old.expiresAt||null;
+
+    if(mode==="duration"||mode==="timeout"||mode==="ban"){
+      const minutes=Number(i.fields.getTextInputValue("duration_minutes"));
+
+      if(!Number.isInteger(minutes)||minutes<1||minutes>43200){
+        await i.editReply({content:"❌ Duration must be a whole number from **1 to 43,200 minutes**."});
+        return true;
+      }
+
+      nextExpiresAt=Date.now()+(minutes*60*1000);
+
+      if(mode!=="duration")nextType=mode;
+    }else if(mode==="permban"){
+      nextType="permban";
+      nextExpiresAt=null;
+    }
+
+    const reasonInput=i.fields.getTextInputValue("reason");
+    const nextReason=reasonInput&&reasonInput.trim()
+      ?reasonInput.trim().slice(0,500)
+      :String(old.reason||"No reason provided");
+
+    found.entry.type=nextType;
+    found.entry.expiresAt=nextExpiresAt;
+    found.entry.reason=nextReason;
+    found.entry.editedAt=Date.now();
+    found.entry.editedBy=i.user.id;
+
+    await saveData(c.data);
+
+    await logModerationAction(
+      i.guild,
+      c.data,
+      "MODERATION CASE EDITED",
+      "A moderation case was edited. The case number and case ID were preserved.",
+      [
+        {name:"🆔 Case",value:"Case "+String(old.caseNumber||"?")+" • "+String(old.id),inline:true},
+        {name:"👤 Player",value:"<@"+String(found.userId)+">",inline:true},
+        {name:"⚖️ Punishment",value:moderationTypeLabel(old.type)+" → "+moderationTypeLabel(nextType),inline:false},
+        {name:"⏳ Duration",value:moderationDurationText(old.expiresAt)+" → "+moderationDurationText(nextExpiresAt),inline:false},
+        {name:"📝 Reason",value:String(old.reason||"No reason provided")+" → "+nextReason,inline:false},
+        {name:"✏️ Edited By",value:"<@"+i.user.id+">",inline:true}
+      ]
+    );
+
+    await i.editReply({
+      content:
+        "✅ **Case "+String(found.entry.caseNumber||"?")+"** updated successfully.\n\n"+
+        "🆔 ID: "+String(found.entry.id)+"\n"+
+        "⚖️ Punishment: **"+moderationTypeLabel(nextType)+"**\n"+
+        "⏳ Duration: **"+moderationDurationText(nextExpiresAt)+"**"
+    });
+
+    return true;
+  }catch(error){
+    console.error("❌ Moderation case edit failed:",error);
+    await i.editReply({content:"❌ The moderation case could not be edited. The error was logged."});
+    return true;
+  }
+}
+
 
 function moderationCaseEmbed(guild,userId,cases,staffView=false){
   const member=guild.members.cache.get(String(userId));
@@ -202,6 +838,7 @@ async function addModeration(i,c,type,targetId,reason,minutes=null){
 
   const entry={
     id:"CASE-"+now.toString(36).toUpperCase(),
+    caseNumber:nextModerationCaseNumber(c.data),
     type,
     userId,
     issuedBy:i.user.id,
@@ -215,6 +852,21 @@ async function addModeration(i,c,type,targetId,reason,minutes=null){
   m[userId].unshift(entry);
 
   await saveData(c.data);
+
+  await logModerationAction(
+    i.guild,
+    c.data,
+    "MODERATION CASE CREATED",
+    "A new tryout moderation case was created.",
+    [
+      {name:"🆔 Case",value:"Case "+String(entry.caseNumber)+" • "+String(entry.id),inline:true},
+      {name:"👤 Player",value:"<@"+userId+">",inline:true},
+      {name:"⚖️ Punishment",value:moderationTypeLabel(type),inline:true},
+      {name:"⏳ Duration",value:moderationDurationText(entry.expiresAt),inline:true},
+      {name:"📝 Reason",value:entry.reason,inline:false},
+      {name:"👮 Issued By",value:"<@"+i.user.id+">",inline:true}
+    ]
+  );
 
   // A moderation action also removes the player from the currently active
   // tryout roster if one exists.
@@ -268,6 +920,19 @@ async function kickFromTryout(i,c,targetId,reason){
   });
 
   await saveData(c.data);
+
+  await logModerationAction(
+    i.guild,
+    c.data,
+    "TRYOUT PLAYER KICKED",
+    "A player was removed from the currently active tryout.",
+    [
+      {name:"👤 Player",value:"<@"+userId+">",inline:true},
+      {name:"🆔 Tryout",value:String(active.id),inline:true},
+      {name:"📝 Reason",value:String(reason||"No reason provided"),inline:false},
+      {name:"👮 Kicked By",value:"<@"+i.user.id+">",inline:true}
+    ]
+  );
 
   await i.reply({
     content:"✅ <@"+userId+"> has been **kicked from the current tryout**.\n📝 Reason: "+String(reason||"No reason provided"),
@@ -521,6 +1186,11 @@ async function startResult(i,c){
 function key(i){return i.guildId+":"+i.user.id;}
 
 async function handleSelect(i,c){
+  if(i.customId.startsWith("modcase:")||i.customId.startsWith("modedit:")){
+    const handled=await handleModerationSelect(i,c);
+    if(handled)return true;
+  }
+
   if(!i.customId.startsWith("tryoutres:"))return false;
   const t=store(c.data).active;
   const s=sessions.get(key(i));
@@ -560,6 +1230,11 @@ function resultEmbed(t,r,g){
 
 async function handleButton(i,c){
   const id=i.customId;
+
+  if(id.startsWith("modcase:")){
+    const handled=await handleModerationButton(i,c);
+    if(handled)return true;
+  }
 
   if(id==="tryout:status"){
     return showModerationStatus(i,c);
@@ -692,6 +1367,10 @@ async function handleButton(i,c){
 }
 
 async function handleModal(i,c){
+  if(i.customId.startsWith("modedit:modal:")){
+    return handleModerationModal(i,c);
+  }
+
   if(i.customId!=="tryoutres:kills_modal")return false;
 
   const s=store(c.data);
@@ -860,5 +1539,6 @@ module.exports={
   isTryoutStaff,
   showModerationStatus,
   addModeration,
-  kickFromTryout
+  kickFromTryout,
+  listModerationCases
 };
