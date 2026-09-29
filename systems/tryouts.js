@@ -50,41 +50,75 @@ function isTryoutStaff(interaction,data){
 
 function announcement(t){
   const closed=t.status==="ended";
-  return new EmbedBuilder()
+
+  const embed=new EmbedBuilder()
     .setColor(closed?0x555555:0x8B0000)
-    .setTitle(closed?"⚔️ BLACK DRAGONS • TRYOUT CLOSED":"⚔️ BLACK DRAGONS • TRYOUT NOW OPEN")
+    .setTitle(closed
+      ?"🏁 BLACK DRAGONS • TRYOUT COMPLETED"
+      :"⚔️ BLACK DRAGONS • TRYOUT NOW OPEN")
     .setDescription(closed
-      ?"This tryout has officially ended. The match history is preserved in the Tryout History channel."
-      :"A new BLACK DRAGONS tryout has officially begun.\n\n**The arena is open. The trial is live.**\nJoin the Roblox server below and wait for Tryout Staff to organize your matchup.\n\nStaff will manage matchups, referee fights, record results, and keep the trial moving.")
+      ?"This tryout has officially finished. The official match history has been preserved and archived."
+      :"A new BLACK DRAGONS tryout has officially begun.\\n\\n**The arena is open. The trial is live.**\\nJoin the Roblox server below and wait for Tryout Staff to organize your matchup.\\n\\nStaff will manage matchups, referee fights, record results, and keep the trial moving.")
     .addFields(
       {name:"👑 Tryout Host",value:"<@"+t.startedBy+">",inline:true},
       {name:"🆔 Tryout ID",value:t.id,inline:true},
-      {name:"📊 Matches Recorded",value:String(t.results?.length||0),inline:true},
-      {name:"🔗 Roblox Server",value:"[**JOIN THE TRYOUT SERVER**]("+t.serverLink+")",inline:false},
-      {name:closed?"🏁 Status":"📜 Before You Fight",value:closed
-        ?"**TRYOUT ENDED**\nEnded by <@"+t.endedBy+">"
-        :"Read the rules in <#"+t.rulesChannelId+"> before entering the arena. Respect your opponent and follow the referee's instructions.",inline:false}
+      {name:"📊 Matches Recorded",value:String(t.results?.length||0),inline:true}
     )
     .setFooter({text:"BLACK DRAGONS • TRYOUT SYSTEM"})
     .setTimestamp(t.createdAt);
+
+  if(closed){
+    embed.addFields(
+      {name:"🏁 Status",value:"**COMPLETED**",inline:true},
+      {name:"📅 Started",value:"<t:"+Math.floor(t.createdAt/1000)+":F>",inline:true},
+      {name:"🛑 Ended",value:"<t:"+Math.floor(t.endedAt/1000)+":F>",inline:true},
+      {name:"👤 Ended By",value:"<@"+t.endedBy+">",inline:false}
+    );
+  }else{
+    embed.addFields(
+      {name:"🔗 Roblox Server",value:"[**JOIN THE TRYOUT SERVER**]("+t.serverLink+")",inline:false},
+      {name:"📜 Before You Fight",value:"Read the rules in <#"+t.rulesChannelId+"> before entering the arena. Respect your opponent and follow the referee's instructions.",inline:false}
+    );
+  }
+
+  return embed;
 }
 
 function historyEmbed(t){
   const closed=t.status==="ended";
-  return new EmbedBuilder()
+
+  const embed=new EmbedBuilder()
     .setColor(closed?0x555555:0x8B0000)
-    .setTitle("📚 BLACK DRAGONS • TRYOUT HISTORY")
-    .setDescription("Complete record for **"+t.id+"**. Match results are posted live in the thread attached to this entry.")
+    .setTitle(closed
+      ?"📚 BLACK DRAGONS • COMPLETED TRYOUT"
+      :"📚 BLACK DRAGONS • TRYOUT HISTORY")
+    .setDescription(closed
+      ?"Permanent record for **"+t.id+"**. This tryout is finished and its match-results thread has been archived."
+      :"Complete record for **"+t.id+"**. Match results are posted live in the thread attached to this entry.")
     .addFields(
       {name:"🆔 Tryout ID",value:t.id,inline:true},
       {name:"👑 Host",value:"<@"+t.startedBy+">",inline:true},
       {name:"📊 Matches",value:String(t.results?.length||0),inline:true},
-      {name:"🔗 Roblox Server",value:"[Join Server]("+t.serverLink+")",inline:false},
       {name:"📅 Started",value:"<t:"+Math.floor(t.createdAt/1000)+":F>",inline:true},
-      {name:"🏁 Status",value:closed?"Ended":"Active",inline:true}
+      {name:"🏁 Status",value:closed?"**COMPLETED / ARCHIVED**":"**ACTIVE**",inline:true}
     )
     .setFooter({text:"BLACK DRAGONS • Permanent Tryout Record"})
     .setTimestamp(t.createdAt);
+
+  if(closed){
+    embed.addFields(
+      {name:"🛑 Ended",value:"<t:"+Math.floor(t.endedAt/1000)+":F>",inline:true},
+      {name:"👤 Ended By",value:"<@"+t.endedBy+">",inline:true}
+    );
+  }else{
+    embed.addFields({
+      name:"🔗 Roblox Server",
+      value:"[Join Server]("+t.serverLink+")",
+      inline:false
+    });
+  }
+
+  return embed;
 }
 
 function panel(t,s,g){
@@ -155,12 +189,13 @@ function killModal(s){
           .setStyle(TextInputStyle.Short)
           .setMinLength(1).setMaxLength(2)
           .setRequired(true)
-          .setValue(s.loserKills!==null?String(s.loserKills):"")
+          
       )
     );
 }
 
 async function startTryout(i,c,link){
+  if(!isTryoutStaff(i,c.data))return i.reply({content:"❌ Only an Administrator or the configured **Tryout Staff** role can start a tryout.",ephemeral:true});
   if(!validLink(link))return i.reply({content:"❌ Please provide a valid HTTPS server link.",ephemeral:true});
 
   const s=store(c.data);
@@ -245,6 +280,7 @@ async function startTryout(i,c,link){
 }
 
 async function startResult(i,c){
+  if(!isTryoutStaff(i,c.data))return i.reply({content:"❌ Only an Administrator or the configured **Tryout Staff** role can record tryout results.",ephemeral:true});
   const t=store(c.data).active;
   if(!t)return i.reply({content:"❌ There is currently **no active tryout**. Start one with /start-tryout first.",ephemeral:true});
   const s={tryoutId:t.id,winnerId:null,loserId:null,winnerKills:null,loserKills:null};
@@ -317,37 +353,67 @@ async function handleButton(i,c){
 
     try{
       const tc=await i.client.channels.fetch(t.channelId).catch(()=>null);
-      const announcementMessage=tc?.messages?.fetch?t.announcementMessageId?await tc.messages.fetch(t.announcementMessageId).catch(()=>null):null:null;
+      const announcementMessage=tc?.messages?.fetch
+        ?(t.announcementMessageId?await tc.messages.fetch(t.announcementMessageId).catch(()=>null):null)
+        :null;
+
       if(announcementMessage){
-        await announcementMessage.edit({
-          embeds:[announcement(t)],
-          components:[
-            new ActionRowBuilder().addComponents(
-              new ButtonBuilder().setLabel("TRYOUT ENDED").setEmoji("🏁").setStyle(ButtonStyle.Secondary).setDisabled(true)
-            )
-          ]
-        });
+        try{
+          await announcementMessage.edit({
+            embeds:[announcement(t)],
+            components:[]
+          });
+        }catch(error){
+          console.error("❌ Tryout announcement update failed:",error);
+        }
       }
 
       const hc=await i.client.channels.fetch(t.historyChannelId).catch(()=>null);
-      const historyMessage=hc?.messages?.fetch?t.historyMessageId?await hc.messages.fetch(t.historyMessageId).catch(()=>null):null:null;
-      if(historyMessage)await historyMessage.edit({embeds:[historyEmbed(t)]});
+      const historyMessage=hc?.messages?.fetch
+        ?(t.historyMessageId?await hc.messages.fetch(t.historyMessageId).catch(()=>null):null)
+        :null;
+
+      if(historyMessage){
+        try{
+          await historyMessage.edit({embeds:[historyEmbed(t)],components:[]});
+        }catch(error){
+          console.error("❌ Tryout history message update failed:",error);
+        }
+      }
 
       if(t.historyThreadId){
         const thread=await i.client.channels.fetch(t.historyThreadId).catch(()=>null);
+
         if(thread?.isThread()){
-          await thread.send({
-            embeds:[
-              new EmbedBuilder()
-                .setColor(0x555555)
-                .setTitle("🏁 "+t.id+" • TRYOUT ENDED")
-                .setDescription("The tryout has ended. **"+t.results.length+" match"+(t.results.length===1?"":"es")+"** were officially recorded.")
-                .addFields({name:"Ended By",value:"<@"+t.endedBy+">",inline:true})
-                .setTimestamp(t.endedAt)
-            ]
-          });
-          await thread.setLocked(true,"Tryout ended").catch(()=>{});
-          await thread.setArchived(true,"Tryout ended").catch(()=>{});
+          try{
+            await thread.send({
+              embeds:[
+                new EmbedBuilder()
+                  .setColor(0x555555)
+                  .setTitle("🏁 "+t.id+" • TRYOUT COMPLETED")
+                  .setDescription("The tryout has officially ended. **"+t.results.length+" match"+(t.results.length===1?"":"es")+"** were recorded.")
+                  .addFields(
+                    {name:"Ended By",value:"<@"+t.endedBy+">",inline:true},
+                    {name:"Status",value:"**COMPLETED • ARCHIVED**",inline:true}
+                  )
+                  .setTimestamp(t.endedAt)
+              ]
+            });
+          }catch(error){
+            console.error("❌ Tryout completion log failed:",error);
+          }
+
+          try{
+            await thread.setLocked(true,"Tryout ended");
+          }catch(error){
+            console.error("❌ Tryout history thread lock failed:",error);
+          }
+
+          try{
+            await thread.setArchived(true,"Tryout ended");
+          }catch(error){
+            console.error("❌ Tryout history thread archive failed:",error);
+          }
         }
       }
     }catch(error){
@@ -483,5 +549,6 @@ module.exports={
   startResult,
   handleSelect,
   handleButton,
-  handleModal
+  handleModal,
+  isTryoutStaff
 };
