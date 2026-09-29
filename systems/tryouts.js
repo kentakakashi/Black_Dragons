@@ -17,6 +17,7 @@ function store(data){
   data.tryouts ||= {};
   data.tryouts.active ||= null;
   data.tryouts.history ||= [];
+  data.tryouts.playerStats ||= {};
   return data.tryouts;
 }
 
@@ -431,7 +432,13 @@ async function handleModal(i,c){
   session.winnerKills=winnerKills;
   session.loserKills=loserKills;
 
-  const winnerTotalWins=Number(t.winnerStats?.[w.id]?.wins||0)+1;
+  const lifetimeStats=store(c.data).playerStats;
+  lifetimeStats[w.id] ||= {wins:0,kills:0};
+  lifetimeStats[w.id].wins=Number(lifetimeStats[w.id].wins||0)+1;
+  lifetimeStats[w.id].kills=Number(lifetimeStats[w.id].kills||0)+winnerKills;
+
+  const winnerTotalWins=lifetimeStats[w.id].wins;
+
   t.winnerStats ||= {};
   t.winnerStats[w.id] ||= {wins:0,kills:0};
 
