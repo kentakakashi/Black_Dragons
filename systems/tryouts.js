@@ -59,20 +59,11 @@ function moderationStore(data){
 
 function cleanupModeration(data){
   const m=moderationStore(data);
-  const now=Date.now();
 
   for(const [userId,cases] of Object.entries(m)){
     if(!Array.isArray(cases)){
       m[userId]=[];
-      continue;
     }
-
-    m[userId]=cases.filter(x=>{
-      if(!x?.expiresAt)return true;
-      return Number(x.expiresAt)>now;
-    });
-
-    if(!m[userId].length)delete m[userId];
   }
 
   return m;
@@ -80,7 +71,24 @@ function cleanupModeration(data){
 
 function activeModerationCases(data,userId){
   const m=cleanupModeration(data);
-  return Array.isArray(m[String(userId)])?m[String(userId)]:[];
+  const cases=Array.isArray(m[String(userId)])?m[String(userId)]:[];
+  const now=Date.now();
+
+  return cases.filter(x =>
+    !x?.expiresAt || Number(x.expiresAt)>now
+  );
+}
+
+function moderationStatusLabel(entry){
+  if(entry?.expiresAt && Number(entry.expiresAt)<=Date.now()){
+    return "⏳ EXPIRED";
+  }
+
+  if(entry?.type==="permban"){
+    return "🔒 ACTIVE";
+  }
+
+  return "🛡️ ACTIVE";
 }
 
 function moderationTypeLabel(type){
@@ -123,7 +131,7 @@ function moderationCases(data){
 
 function findModerationCase(data,caseId){
   const id=String(caseId||"");
-  const m=cleanupModeration(data);
+  const m=moderationStore(data);
 
   for(const [userId,cases] of Object.entries(m)){
     if(!Array.isArray(cases))continue;
@@ -240,6 +248,7 @@ function moderationCaseDetailEmbed(guild,entry){
     )
     .addFields(
       {name:"⚖️ Punishment",value:moderationTypeLabel(entry.type),inline:true},
+      {name:"📌 Status",value:moderationStatusLabel(entry),inline:true},
       {name:"⏳ Duration",value:moderationDurationText(entry.expiresAt),inline:true},
       {name:"📝 Reason",value:String(entry.reason||"No reason provided"),inline:false},
       {name:"👮 Issued By",value:"<@"+String(entry.issuedBy||"unknown")+">",inline:true},
@@ -769,7 +778,13 @@ function moderationCaseEmbed(guild,userId,cases,staffView=false){
 function moderationListEmbed(data,guild){
   const m=cleanupModeration(data);
   const entries=Object.entries(m)
-    .filter(([,cases])=>Array.isArray(cases)&&cases.length)
+    .map(([userId,cases])=>[
+      userId,
+      Array.isArray(cases)
+        ?cases.filter(x=>!x?.expiresAt||Number(x.expiresAt)>Date.now())
+        :[]
+    ])
+    .filter(([,cases])=>cases.length)
     .sort((a,b)=>Number(b[1][0]?.createdAt||0)-Number(a[1][0]?.createdAt||0));
 
   const embed=new EmbedBuilder()
@@ -854,7 +869,7 @@ async function addModeration(i,c,type,targetId,reason,minutes=null){
   };
 
   m[userId] ||= [];
-  m[userId]=m[userId].filter(x=>x?.expiresAt && Number(x.expiresAt)>now);
+  m[userId]=m[userId].filter(Boolean);
   m[userId].unshift(entry);
 
   await saveData(c.data);
