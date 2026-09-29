@@ -189,7 +189,7 @@ function moderationCaseListComponents(entries,page){
 
   if(shown.length){
     const menu=new StringSelectMenuBuilder()
-      .setCustomId("modcase:select")
+      .setCustomId("modcase:select:"+page)
       .setPlaceholder("Select a moderation case")
       .setMinValues(1)
       .setMaxValues(1)
@@ -550,12 +550,13 @@ async function handleModerationButton(i,c){
 async function handleModerationSelect(i,c){
   const id=i.customId;
 
-  if(id==="modcase:select"){
+  if(id.startsWith("modcase:select:")){
     if(!isTryoutStaff(i,c.data)){
       await i.reply({content:"❌ Only an Administrator or the configured **Tryout Staff** role can view moderation cases.",ephemeral:true});
       return true;
     }
 
+    const page=Number(id.split(":")[2]||0);
     const found=findModerationCase(c.data,i.values[0]);
     if(!found){
       await i.reply({content:"❌ That moderation case no longer exists or has expired.",ephemeral:true});
@@ -564,7 +565,7 @@ async function handleModerationSelect(i,c){
 
     await i.update({
       embeds:[moderationCaseDetailEmbed(i.guild,found.entry)],
-      components:moderationCaseDetailComponents(found.entry,0)
+      components:moderationCaseDetailComponents(found.entry,page)
     });
 
     return true;
