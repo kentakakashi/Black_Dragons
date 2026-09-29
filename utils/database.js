@@ -128,7 +128,8 @@ const defaultData = {
     active: null,
     history: [],
     playerStats: {},
-    moderation: {}
+    moderation: {},
+    moderationCaseCounter: 0
   },
 
   rankUsers: {},
@@ -412,7 +413,10 @@ function normalizeData(saved = {}) {
       : {},
     moderation: saved.tryouts?.moderation && typeof saved.tryouts.moderation === "object"
       ? saved.tryouts.moderation
-      : {}
+      : {},
+    moderationCaseCounter: Number.isFinite(Number(saved.tryouts?.moderationCaseCounter))
+      ? Number(saved.tryouts.moderationCaseCounter)
+      : 0
   };
 
   data.rankUsers =
