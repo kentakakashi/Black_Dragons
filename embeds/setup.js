@@ -97,19 +97,19 @@ function createHomeEmbed(data, notice, guild) {
   const leaderboardConfigured=[currentValue(data,"leaderboard_ranking_titles"),currentValue(data,"leaderboard_top_kills")].filter(Boolean).length;
   const tryoutConfigured=[currentValue(data,"tryout_rules"),currentValue(data,"tryout_channel"),currentValue(data,"tryout_history")].filter(Boolean).length;
   return base().setTitle("🐉 BLACK DRAGONS • BOT SETUP").setDescription(
-    (notice?notice+"\\n\\n":"")+"**Choose a category to configure.**\\n\\n"+
-    "🛠️ **Help Desk** — channels and request roles\\n"+
-    "🏆 **Rank System** — registration, review, history and leaderboard\\n"+
-    "🎖️ **Rank Roles** — Z through E role mapping\\n"+
-    "📋 **Logging** — message, moderation, roles, VC, users, invites, server, channels, bot and general logs\\n"+
-    "🚫 **Blacklist** — public player and clan blacklist channels\\n"+
-    "🏆 **Leaderboards** — permanent Ranking Titles and Top Kills channels\\n"+
-    "⚔️ **Tryouts** — rules, live tryout and history channels\\n\\n"+
-    "⚙️ Select settings one by one. Changes stay in a **draft**.\\n"+
-    "💾 Press **SAVE ALL** once at the end to save everything together.\\n\\n"+
-    "📋 **Logging configured:** "+configured+"/10\\n"+
-    "🚫 **Blacklist channels:** "+blacklistConfigured+"/2\\n"+
-    "🏆 **Leaderboard channels:** "+leaderboardConfigured+"/2\\n"+
+    (notice?notice+"\n\n":"")+"**Choose a category to configure.**\n\n"+
+    "🛠️ **Help Desk** — channels and request roles\n"+
+    "🏆 **Rank System** — registration, review, history and leaderboard\n"+
+    "🎖️ **Rank Roles** — Z through E role mapping\n"+
+    "📋 **Logging** — message, moderation, roles, VC, users, invites, server, channels, bot and general logs\n"+
+    "🚫 **Blacklist** — public player and clan blacklist channels\n"+
+    "🏆 **Leaderboards** — permanent Ranking Titles and Top Kills channels\n"+
+    "⚔️ **Tryouts** — rules, live tryout and history channels\n\n"+
+    "⚙️ Select settings one by one. Changes stay in a **draft**.\n"+
+    "💾 Press **SAVE ALL** once at the end to save everything together.\n\n"+
+    "📋 **Logging configured:** "+configured+"/10\n"+
+    "🚫 **Blacklist channels:** "+blacklistConfigured+"/2\n"+
+    "🏆 **Leaderboard channels:** "+leaderboardConfigured+"/2\n"+
     "⚔️ **Tryout channels:** "+tryoutConfigured+"/3"
   );
 }
