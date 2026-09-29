@@ -331,6 +331,20 @@ function buildCommands() {
       .addStringOption(o => o.setName('reason').setDescription('Reason for the permanent ban.').setMaxLength(500).setRequired(true)),
 
     new SlashCommandBuilder()
+      .setName('moderation')
+      .setDescription('Manage BLACK DRAGONS moderation cases.')
+      .addSubcommandGroup(group =>
+        group
+          .setName('case')
+          .setDescription('View and manage moderation cases.')
+          .addSubcommand(sub =>
+            sub
+              .setName('list')
+              .setDescription('List all active moderation cases.')
+          )
+      ),
+
+    new SlashCommandBuilder()
       .setName('allies')
       .setDescription(
         'Manage the Black Dragons allied clans list.'
