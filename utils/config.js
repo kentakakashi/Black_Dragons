@@ -301,6 +301,36 @@ function buildCommands() {
       .setDescription('Record the winner, opponent, and kill score for an active tryout match.'),
 
     new SlashCommandBuilder()
+      .setName('tryout-status')
+      .setDescription('View your tryout eligibility, or view all active restrictions if you are Tryout Staff.'),
+
+    new SlashCommandBuilder()
+      .setName('tryout-timeout')
+      .setDescription('Temporarily restrict a player from joining BLACK DRAGONS tryouts.')
+      .addUserOption(o => o.setName('user').setDescription('Player to restrict.').setRequired(true))
+      .addIntegerOption(o => o.setName('duration_minutes').setDescription('Restriction duration in minutes.').setMinValue(1).setMaxValue(43200).setRequired(true))
+      .addStringOption(o => o.setName('reason').setDescription('Reason for the timeout.').setMaxLength(500).setRequired(true)),
+
+    new SlashCommandBuilder()
+      .setName('tryout-kick')
+      .setDescription('Remove a player from the currently active tryout.')
+      .addUserOption(o => o.setName('user').setDescription('Player to kick.').setRequired(true))
+      .addStringOption(o => o.setName('reason').setDescription('Reason for the kick.').setMaxLength(500).setRequired(true)),
+
+    new SlashCommandBuilder()
+      .setName('tryout-ban')
+      .setDescription('Temporarily ban a player from BLACK DRAGONS tryouts.')
+      .addUserOption(o => o.setName('user').setDescription('Player to temporarily ban.').setRequired(true))
+      .addIntegerOption(o => o.setName('duration_minutes').setDescription('Ban duration in minutes.').setMinValue(1).setMaxValue(43200).setRequired(true))
+      .addStringOption(o => o.setName('reason').setDescription('Reason for the ban.').setMaxLength(500).setRequired(true)),
+
+    new SlashCommandBuilder()
+      .setName('tryout-permban')
+      .setDescription('Permanently ban a player from BLACK DRAGONS tryouts.')
+      .addUserOption(o => o.setName('user').setDescription('Player to permanently ban.').setRequired(true))
+      .addStringOption(o => o.setName('reason').setDescription('Reason for the permanent ban.').setMaxLength(500).setRequired(true)),
+
+    new SlashCommandBuilder()
       .setName('allies')
       .setDescription(
         'Manage the Black Dragons allied clans list.'
