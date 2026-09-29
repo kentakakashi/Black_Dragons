@@ -288,7 +288,6 @@ function buildCommands() {
     new SlashCommandBuilder()
       .setName('start-tryout')
       .setDescription('Start a new BLACK DRAGONS live tryout.')
-      .setDefaultMemberPermissions(PermissionFlagsBits.Administrator.toString())
       .addStringOption(option =>
         option
           .setName('server_link')
@@ -299,8 +298,7 @@ function buildCommands() {
 
     new SlashCommandBuilder()
       .setName('tryout-result')
-      .setDescription('Record the winner, opponent, and kill score for an active tryout match.')
-      .setDefaultMemberPermissions(PermissionFlagsBits.Administrator.toString()),
+      .setDescription('Record the winner, opponent, and kill score for an active tryout match.'),
 
     new SlashCommandBuilder()
       .setName('allies')
