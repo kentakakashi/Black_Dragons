@@ -126,7 +126,8 @@ const defaultData = {
 
   tryouts: {
     active: null,
-    history: []
+    history: [],
+    playerStats: {}
   },
 
   rankUsers: {},
@@ -404,7 +405,10 @@ function normalizeData(saved = {}) {
     active: saved.tryouts?.active || null,
     history: Array.isArray(saved.tryouts?.history)
       ? saved.tryouts.history
-      : []
+      : [],
+    playerStats: saved.tryouts?.playerStats && typeof saved.tryouts.playerStats === "object"
+      ? saved.tryouts.playerStats
+      : {}
   };
 
   data.rankUsers =
@@ -999,7 +1003,11 @@ function reconcileData(
       ...(cloudData.tryouts?.history || [])
     ].filter((entry, index, array) =>
       array.findIndex(item => String(item?.id || "") === String(entry?.id || "")) === index
-    )
+    ),
+    playerStats: {
+      ...(localData.tryouts?.playerStats || {}),
+      ...(cloudData.tryouts?.playerStats || {})
+    }
   };
 
   /*
@@ -1222,7 +1230,7 @@ async function saveFirestoreData(
       .collection("tryouts")
       .doc("server")
       .set(
-        clean.tryouts || { active: null, history: [] },
+        clean.tryouts || { active: null, history: [], playerStats: {} },
         { merge: true }
       )
   ]);
