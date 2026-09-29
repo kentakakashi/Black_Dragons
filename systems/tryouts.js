@@ -318,7 +318,7 @@ function moderationEditComponents(entry,page){
     ),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId("modcase:back:"+page)
+        .setCustomId("modcase:detail:"+entry.id+":"+page)
         .setLabel("← BACK TO CASE")
         .setStyle(ButtonStyle.Secondary)
     )
@@ -341,7 +341,7 @@ function moderationPunishmentComponents(caseId,page){
     ),
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setCustomId("modcase:back:"+page)
+        .setCustomId("modcase:detail:"+caseId+":"+page)
         .setLabel("← BACK TO CASE")
         .setStyle(ButtonStyle.Secondary)
     )
@@ -515,6 +515,30 @@ async function handleModerationButton(i,c){
     await i.update({
       embeds:[moderationEditEmbed(i.guild,found.entry)],
       components:moderationEditComponents(found.entry,page)
+    });
+
+    return true;
+  }
+
+  if(id.startsWith("modcase:detail:")){
+    if(!isTryoutStaff(i,c.data)){
+      await i.reply({content:"❌ Only an Administrator or the configured **Tryout Staff** role can manage moderation cases.",ephemeral:true});
+      return true;
+    }
+
+    const parts=id.split(":");
+    const caseId=parts[2];
+    const page=Number(parts[3]||0);
+    const found=findModerationCase(c.data,caseId);
+
+    if(!found){
+      await i.reply({content:"❌ That moderation case no longer exists or has expired.",ephemeral:true});
+      return true;
+    }
+
+    await i.update({
+      embeds:[moderationCaseDetailEmbed(i.guild,found.entry)],
+      components:moderationCaseDetailComponents(found.entry,page)
     });
 
     return true;
