@@ -167,7 +167,7 @@ function moderationCaseListEmbed(entries,page,totalPages){
     .setTitle("🛡️ BLACK DRAGONS • MODERATION CASES")
     .setDescription(shown.length
       ?"Select a case below to view its full details and manage it."
-      :"There are currently no active moderation cases.")
+      :"There are currently no moderation cases.")
     .setFooter({text:"BLACK DRAGONS • Moderation Case Management"})
     .setTimestamp();
 
@@ -183,7 +183,7 @@ function moderationCaseListEmbed(entries,page,totalPages){
   if(entries.length>25){
     embed.addFields({
       name:"📚 Total Cases",
-      value:"**"+entries.length+"** active moderation cases."
+      value:"**"+entries.length+"** moderation cases."
     });
   }
 
