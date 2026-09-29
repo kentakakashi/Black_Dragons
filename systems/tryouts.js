@@ -735,6 +735,25 @@ async function handleModal(i,c){
       return true;
     }
 
+    const winnerRestriction=activeModerationCases(c.data,w.id);
+    const loserRestriction=activeModerationCases(c.data,l.id);
+    const activeTryout=store(c.data).active;
+
+    if(winnerRestriction.length){
+      await i.editReply({content:"❌ <@"+w.id+"> is currently restricted from BLACK DRAGONS tryouts and cannot have a result recorded."});
+      return true;
+    }
+
+    if(loserRestriction.length){
+      await i.editReply({content:"❌ <@"+l.id+"> is currently restricted from BLACK DRAGONS tryouts and cannot have a result recorded."});
+      return true;
+    }
+
+    if(activeTryout?.kickedUserIds?.includes(String(w.id))||activeTryout?.kickedUserIds?.includes(String(l.id))){
+      await i.editReply({content:"❌ One of the selected players has been kicked from the current tryout and cannot have another result recorded."});
+      return true;
+    }
+
     session.winnerKills=winnerKills;
     session.loserKills=loserKills;
 
