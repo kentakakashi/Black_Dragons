@@ -48,6 +48,235 @@ function isTryoutStaff(interaction,data){
   return !!roleId && interaction.member?.roles?.cache?.has(String(roleId));
 }
 
+function moderationStore(data){
+  const s=store(data);
+  s.moderation ||= {};
+  return s.moderation;
+}
+
+function cleanupModeration(data){
+  const m=moderationStore(data);
+  const now=Date.now();
+
+  for(const [userId,cases] of Object.entries(m)){
+    if(!Array.isArray(cases)){
+      m[userId]=[];
+      continue;
+    }
+
+    m[userId]=cases.filter(x=>{
+      if(!x?.expiresAt)return true;
+      return Number(x.expiresAt)>now;
+    });
+
+    if(!m[userId].length)delete m[userId];
+  }
+
+  return m;
+}
+
+function activeModerationCases(data,userId){
+  const m=cleanupModeration(data);
+  return Array.isArray(m[String(userId)])?m[String(userId)]:[];
+}
+
+function moderationTypeLabel(type){
+  return ({
+    timeout:"⏱️ TIMEOUT",
+    ban:"🚫 TEMPORARY BAN",
+    permban:"🔒 PERMANENT BAN"
+  })[type]||String(type||"MODERATION").toUpperCase();
+}
+
+function moderationDurationText(expiresAt){
+  if(!expiresAt)return "Permanent";
+  return "<t:"+Math.floor(Number(expiresAt)/1000)+":R>";
+}
+
+function moderationCaseEmbed(guild,userId,cases,staffView=false){
+  const member=guild.members.cache.get(String(userId));
+  const name=member?member.user.tag:"User "+userId;
+
+  const embed=new EmbedBuilder()
+    .setColor(0x8B0000)
+    .setTitle(staffView?"🛡️ TRYOUT MODERATION CASE":"🛡️ YOUR TRYOUT STATUS")
+    .setDescription(staffView
+      ?"Current restrictions affecting **"+name+"**."
+      :"Your current BLACK DRAGONS tryout eligibility.")
+    .addFields({
+      name:"👤 Player",
+      value:"<@"+userId+">",
+      inline:false
+    });
+
+  for(const x of cases.slice(0,10)){
+    embed.addFields({
+      name:moderationTypeLabel(x.type)+" • "+String(x.id||"CASE"),
+      value:
+        "**Reason:** "+String(x.reason||"No reason provided")+"\n"+
+        "**Issued By:** <@"+String(x.issuedBy||"unknown")+">\n"+
+        "**Issued:** <t:"+Math.floor(Number(x.createdAt||Date.now())/1000)+":F>\n"+
+        "**Expires:** "+moderationDurationText(x.expiresAt),
+      inline:false
+    });
+  }
+
+  return embed;
+}
+
+function moderationListEmbed(data,guild){
+  const m=cleanupModeration(data);
+  const entries=Object.entries(m)
+    .filter(([,cases])=>Array.isArray(cases)&&cases.length)
+    .sort((a,b)=>Number(b[1][0]?.createdAt||0)-Number(a[1][0]?.createdAt||0));
+
+  const embed=new EmbedBuilder()
+    .setColor(0x8B0000)
+    .setTitle("🛡️ BLACK DRAGONS • TRYOUT RESTRICTIONS")
+    .setDescription(entries.length
+      ?"Players currently restricted from joining BLACK DRAGONS tryouts."
+      :"No players are currently under a tryout restriction.")
+    .setFooter({text:"BLACK DRAGONS • Tryout Moderation"})
+    .setTimestamp();
+
+  if(entries.length){
+    const lines=entries.slice(0,25).map(([userId,cases])=>{
+      const current=cases[0];
+      return "<@"+userId+"> — **"+moderationTypeLabel(current.type)+"** — "+moderationDurationText(current.expiresAt);
+    });
+    embed.addFields({name:"🚫 Restricted Players",value:lines.join("\n")||"None"});
+  }
+
+  if(entries.length>25){
+    embed.addFields({name:"📋 Note",value:"Showing the first 25 currently restricted players."});
+  }
+
+  return embed;
+}
+
+async function showModerationStatus(i,c){
+  const staff=isTryoutStaff(i,c.data);
+  if(staff){
+    await i.reply({embeds:[moderationListEmbed(c.data,i.guild)],ephemeral:true});
+    return true;
+  }
+
+  const cases=activeModerationCases(c.data,i.user.id);
+
+  if(!cases.length){
+    await i.reply({
+      content:"✅ **You are not currently moderated for BLACK DRAGONS tryouts.**\n\nYou are **good to go**.",
+      ephemeral:true
+    });
+    return true;
+  }
+
+  await i.reply({
+    embeds:[moderationCaseEmbed(i.guild,i.user.id,cases,false)],
+    ephemeral:true
+  });
+  return true;
+}
+
+async function addModeration(i,c,type,targetId,reason,minutes=null){
+  if(!isTryoutStaff(i,c.data)){
+    await i.reply({content:"❌ Only an Administrator or the configured **Tryout Staff** role can use tryout moderation.",ephemeral:true});
+    return true;
+  }
+
+  if(String(targetId)===String(i.user.id)){
+    await i.reply({content:"❌ You cannot moderate yourself.",ephemeral:true});
+    return true;
+  }
+
+  const member=await i.guild.members.fetch(targetId).catch(()=>null);
+  if(!member){
+    await i.reply({content:"❌ That member could not be found in this server.",ephemeral:true});
+    return true;
+  }
+
+  const m=moderationStore(c.data);
+  const userId=String(targetId);
+  const now=Date.now();
+  const expiresAt=minutes?now+(Number(minutes)*60*1000):null;
+
+  const entry={
+    id:"CASE-"+now.toString(36).toUpperCase(),
+    type,
+    userId,
+    issuedBy:i.user.id,
+    reason:String(reason||"No reason provided").slice(0,500),
+    createdAt:now,
+    expiresAt
+  };
+
+  m[userId] ||= [];
+  m[userId]=m[userId].filter(x=>x?.expiresAt && Number(x.expiresAt)>now);
+  m[userId].unshift(entry);
+
+  await saveData(c.data);
+
+  // A moderation action also removes the player from the currently active
+  // tryout roster if one exists.
+  const active=store(c.data).active;
+  if(active){
+    active.moderatedUserIds ||= [];
+    if(!active.moderatedUserIds.includes(userId))active.moderatedUserIds.push(userId);
+    await saveData(c.data);
+  }
+
+  await i.reply({
+    content:
+      "✅ **"+moderationTypeLabel(type)+"** applied to <@"+userId+">.\n"+
+      "🆔 Case: **"+entry.id+"**\n"+
+      "📝 Reason: "+entry.reason+"\n"+
+      "⏳ Expires: "+moderationDurationText(entry.expiresAt),
+    ephemeral:true
+  });
+
+  return true;
+}
+
+async function kickFromTryout(i,c,targetId,reason){
+  if(!isTryoutStaff(i,c.data)){
+    await i.reply({content:"❌ Only an Administrator or the configured **Tryout Staff** role can use tryout moderation.",ephemeral:true});
+    return true;
+  }
+
+  const active=store(c.data).active;
+  if(!active){
+    await i.reply({content:"❌ There is no active tryout.",ephemeral:true});
+    return true;
+  }
+
+  const member=await i.guild.members.fetch(targetId).catch(()=>null);
+  if(!member){
+    await i.reply({content:"❌ That member could not be found in this server.",ephemeral:true});
+    return true;
+  }
+
+  active.kickedUserIds ||= [];
+  const userId=String(targetId);
+  if(!active.kickedUserIds.includes(userId))active.kickedUserIds.push(userId);
+
+  active.kickHistory ||= [];
+  active.kickHistory.push({
+    userId,
+    issuedBy:i.user.id,
+    reason:String(reason||"No reason provided").slice(0,500),
+    timestamp:Date.now()
+  });
+
+  await saveData(c.data);
+
+  await i.reply({
+    content:"✅ <@"+userId+"> has been **kicked from the current tryout**.\n📝 Reason: "+String(reason||"No reason provided"),
+    ephemeral:true
+  });
+
+  return true;
+}
+
 function announcement(t){
   const closed=t.status==="ended";
 
@@ -240,6 +469,7 @@ async function startTryout(i,c,link){
         new ActionRowBuilder().addComponents(
           new ButtonBuilder().setLabel("JOIN ROBLOX SERVER").setStyle(ButtonStyle.Link).setURL(link).setEmoji("🎮"),
           new ButtonBuilder().setLabel("READ RULES").setStyle(ButtonStyle.Link).setURL("https://discord.com/channels/"+i.guildId+"/"+rc.id).setEmoji("📜"),
+          new ButtonBuilder().setCustomId("tryout:status").setLabel("TRYOUT STATUS").setEmoji("🛡️").setStyle(ButtonStyle.Secondary),
           new ButtonBuilder().setCustomId("tryout:end").setLabel("END TRYOUT").setEmoji("🏁").setStyle(ButtonStyle.Danger)
         )
       ]
@@ -331,6 +561,10 @@ function resultEmbed(t,r,g){
 async function handleButton(i,c){
   const id=i.customId;
 
+  if(id==="tryout:status"){
+    return showModerationStatus(i,c);
+  }
+
   if(id==="tryout:end"){
     const t=store(c.data).active;
     if(!t){
@@ -391,7 +625,7 @@ async function handleButton(i,c){
                 new EmbedBuilder()
                   .setColor(0x555555)
                   .setTitle("🏁 "+t.id+" • TRYOUT COMPLETED")
-                  .setDescription("The tryout has officially ended. **"+t.results.length+" match"+(t.results.length===1?"":"es")+"** were recorded.")
+                  .setDescription("The tryout has officially ended. **"+t.results.length+" match"+(t.results.length===1?" was":"es were")+" recorded.")
                   .addFields(
                     {name:"Ended By",value:"<@"+t.endedBy+">",inline:true},
                     {name:"Status",value:"**COMPLETED • ARCHIVED**",inline:true}
@@ -535,6 +769,23 @@ async function handleModal(i,c){
     // the history message.
     await saveData(c.data);
 
+    const matchEmbed=resultEmbed(t,r,i.guild);
+
+    const tryoutChannel=await i.client.channels.fetch(t.channelId).catch(()=>null);
+    let tryoutPosted=true;
+
+    if(tryoutChannel?.isTextBased()){
+      try{
+        await tryoutChannel.send({embeds:[matchEmbed]});
+      }catch(error){
+        tryoutPosted=false;
+        console.error("❌ Tryout match public post failed:",error);
+      }
+    }else{
+      tryoutPosted=false;
+      console.error("❌ Tryout channel could not be found.");
+    }
+
     const thread=t.historyThreadId
       ? await i.client.channels.fetch(t.historyThreadId).catch(()=>null)
       : null;
@@ -543,7 +794,7 @@ async function handleModal(i,c){
 
     if(thread?.isTextBased()){
       try{
-        await thread.send({embeds:[resultEmbed(t,r,i.guild)]});
+        await thread.send({embeds:[matchEmbed]});
       }catch(error){
         historyPosted=false;
         console.error("❌ Tryout match history post failed:",error);
@@ -587,5 +838,8 @@ module.exports={
   handleSelect,
   handleButton,
   handleModal,
-  isTryoutStaff
+  isTryoutStaff,
+  showModerationStatus,
+  addModeration,
+  kickFromTryout
 };
