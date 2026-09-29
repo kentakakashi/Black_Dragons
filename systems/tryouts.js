@@ -175,7 +175,7 @@ function moderationCaseListEmbed(entries,page,totalPages){
     embed.addFields({
       name:"📋 Cases • Page "+(page+1)+"/"+totalPages,
       value:shown.map(x=>
-        "**Case "+String(x.caseNumber||"?")+"** • "+String(x.id||"UNKNOWN")+" • <@"+String(x.userId)+"> • "+moderationTypeLabel(x.type)
+        "**Case "+String(x.caseNumber||"?")+"** • "+String(x.id||"UNKNOWN")+" • <@"+String(x.userId)+"> • "+moderationTypeLabel(x.type)+" • "+moderationStatusLabel(x)
       ).join("\n")
     });
   }
