@@ -1019,7 +1019,11 @@ function reconcileData(
     moderation: {
       ...(localData.tryouts?.moderation || {}),
       ...(cloudData.tryouts?.moderation || {})
-    }
+    },
+    moderationCaseCounter: Math.max(
+      Number(localData.tryouts?.moderationCaseCounter || 0),
+      Number(cloudData.tryouts?.moderationCaseCounter || 0)
+    )
   };
 
   /*
