@@ -68,7 +68,11 @@ async function startTryout(i,c,link){
   if(!tc||!rc)return i.reply({content:"❌ Tryout channels are not configured. Use `/setup` → **Tryouts** and select the Rules, Tryout, and History channels first.",ephemeral:true});
   const now=Date.now();
   const t={id:"TRY-"+now.toString(36).toUpperCase(),guildId:i.guildId,channelId:tc.id,rulesChannelId:rc?.id||tc.id,serverLink:link,startedBy:i.user.id,createdAt:now,results:[],announcementMessageId:null};
-  const m=await tc.send({content:"@everyone",embeds:[announcement(t)],allowedMentions:{parse:["everyone"]},components:[new ActionRowBuilder().addComponents(new ButtonBuilder().setLabel("JOIN ROBLOX SERVER").setStyle(ButtonStyle.Link).setURL(link).setEmoji("🎮"))]});
+  const rulesUrl="https://discord.com/channels/"+i.guildId+"/"+rc.id;
+  const m=await tc.send({content:"@everyone",embeds:[announcement(t)],allowedMentions:{parse:["everyone"]},components:[new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setLabel("JOIN ROBLOX SERVER").setStyle(ButtonStyle.Link).setURL(link).setEmoji("🎮"),
+    new ButtonBuilder().setLabel("READ RULES").setStyle(ButtonStyle.Link).setURL(rulesUrl).setEmoji("📜")
+  )]});
   t.announcementMessageId=m.id;
   s.active=t;
   s.history.push({id:t.id,startedBy:t.startedBy,serverLink:t.serverLink,channelId:t.channelId,startedAt:t.createdAt,announcementMessageId:m.id});
