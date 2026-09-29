@@ -469,78 +469,115 @@ async function handleModal(i,c){
     return true;
   }
 
-  const winnerKills=Number(i.fields.getTextInputValue("winner_kills"));
-  const loserKills=Number(i.fields.getTextInputValue("loser_kills"));
+  // A modal interaction must be acknowledged immediately.
+  // Database writes and Discord thread operations can take long enough
+  // to make Discord show the generic "Something went wrong" message.
+  await i.deferReply({ephemeral:true});
 
-  if(!Number.isInteger(winnerKills)||!Number.isInteger(loserKills)||winnerKills<0||loserKills<0){
-    await i.reply({content:"❌ Kill counts must be whole numbers.",ephemeral:true});
+  try{
+    const winnerKills=Number(i.fields.getTextInputValue("winner_kills"));
+    const loserKills=Number(i.fields.getTextInputValue("loser_kills"));
+
+    if(!Number.isInteger(winnerKills)||!Number.isInteger(loserKills)||winnerKills<0||loserKills<0){
+      await i.editReply({content:"❌ Kill counts must be whole numbers."});
+      return true;
+    }
+
+    if(winnerKills!==5){
+      await i.editReply({content:"❌ The winning score must be **5** because the first player to reach 5 kills wins."});
+      return true;
+    }
+
+    if(loserKills>=5){
+      await i.editReply({content:"❌ The opponent's score must be **0–4** when the winner reaches 5."});
+      return true;
+    }
+
+    const w=await i.guild.members.fetch(session.winnerId).catch(()=>null);
+    const l=await i.guild.members.fetch(session.loserId).catch(()=>null);
+
+    if(!w||!l){
+      await i.editReply({content:"❌ One of the selected players could not be found in this server."});
+      return true;
+    }
+
+    session.winnerKills=winnerKills;
+    session.loserKills=loserKills;
+
+    const lifetimeStats=store(c.data).playerStats;
+    lifetimeStats[w.id] ||= {wins:0,kills:0};
+    lifetimeStats[w.id].wins=Number(lifetimeStats[w.id].wins||0)+1;
+    lifetimeStats[w.id].kills=Number(lifetimeStats[w.id].kills||0)+winnerKills;
+
+    const winnerTotalWins=lifetimeStats[w.id].wins;
+
+    t.winnerStats ||= {};
+    t.winnerStats[w.id] ||= {wins:0,kills:0};
+
+    const r={
+      id:"MATCH-"+Date.now().toString(36).toUpperCase(),
+      winnerId:w.id,
+      loserId:l.id,
+      winnerKills,
+      loserKills,
+      recordedBy:i.user.id,
+      timestamp:Date.now(),
+      winnerTotalWins
+    };
+
+    t.winnerStats[w.id].wins=winnerTotalWins;
+    t.winnerStats[w.id].kills=Number(t.winnerStats[w.id].kills||0)+winnerKills;
+    t.results.push(r);
+
+    syncHistory(c.data,t);
+
+    // Persist the match even if Discord has a temporary problem sending
+    // the history message.
+    await saveData(c.data);
+
+    const thread=t.historyThreadId
+      ? await i.client.channels.fetch(t.historyThreadId).catch(()=>null)
+      : null;
+
+    let historyPosted=true;
+
+    if(thread?.isTextBased()){
+      try{
+        await thread.send({embeds:[resultEmbed(t,r,i.guild)]});
+      }catch(error){
+        historyPosted=false;
+        console.error("❌ Tryout match history post failed:",error);
+      }
+    }else{
+      historyPosted=false;
+      console.error("❌ Tryout match history thread could not be found.");
+    }
+
+    sessions.delete(key(i));
+
+    await i.editReply({
+      content:
+        "✅ **Match #"+t.results.length+" recorded successfully.**\\n\\n"+
+        w.toString()+" won against "+l.toString()+" with a **"+winnerKills+" - "+loserKills+"** score."+
+        (historyPosted
+          ?"\\n📚 The official result was added to the tryout history thread."
+          :"\\n⚠️ The match was saved, but I could not post it to the history thread.")
+    });
+
+    return true;
+  }catch(error){
+    console.error("❌ Tryout result submission failed:",error);
+
+    try{
+      await i.editReply({
+        content:"❌ The match could not be recorded. The error was logged; no partial confirmation was sent."
+      });
+    }catch(replyError){
+      console.error("❌ Could not update tryout result error reply:",replyError);
+    }
+
     return true;
   }
-
-  if(winnerKills!==5){
-    await i.reply({content:"❌ The winning score must be **5** because the first player to reach 5 kills wins.",ephemeral:true});
-    return true;
-  }
-
-  if(loserKills>=5){
-    await i.reply({content:"❌ The opponent's score must be **0–4** when the winner reaches 5.",ephemeral:true});
-    return true;
-  }
-
-  const w=await i.guild.members.fetch(session.winnerId).catch(()=>null);
-  const l=await i.guild.members.fetch(session.loserId).catch(()=>null);
-
-  if(!w||!l){
-    await i.reply({content:"❌ One of the selected players could not be found in this server.",ephemeral:true});
-    return true;
-  }
-
-  session.winnerKills=winnerKills;
-  session.loserKills=loserKills;
-
-  const lifetimeStats=store(c.data).playerStats;
-  lifetimeStats[w.id] ||= {wins:0,kills:0};
-  lifetimeStats[w.id].wins=Number(lifetimeStats[w.id].wins||0)+1;
-  lifetimeStats[w.id].kills=Number(lifetimeStats[w.id].kills||0)+winnerKills;
-
-  const winnerTotalWins=lifetimeStats[w.id].wins;
-
-  t.winnerStats ||= {};
-  t.winnerStats[w.id] ||= {wins:0,kills:0};
-
-  const r={
-    id:"MATCH-"+Date.now().toString(36).toUpperCase(),
-    winnerId:w.id,
-    loserId:l.id,
-    winnerKills,
-    loserKills,
-    recordedBy:i.user.id,
-    timestamp:Date.now(),
-    winnerTotalWins
-  };
-
-  t.winnerStats[w.id].wins=winnerTotalWins;
-  t.winnerStats[w.id].kills=Number(t.winnerStats[w.id].kills||0)+winnerKills;
-  t.results.push(r);
-
-  syncHistory(c.data,t);
-  await saveData(c.data);
-
-  const thread=t.historyThreadId
-    ? await i.client.channels.fetch(t.historyThreadId).catch(()=>null)
-    : null;
-
-  if(thread?.isTextBased()){
-    await thread.send({embeds:[resultEmbed(t,r,i.guild)]});
-  }
-
-  sessions.delete(key(i));
-
-  await i.reply({
-    content:"✅ **Match #"+t.results.length+" recorded successfully.**\n\n"+w.toString()+" won against "+l.toString()+" with a **"+winnerKills+" - "+loserKills+"** score.\n📚 The official result was added to the tryout history thread.",
-    ephemeral:true
-  });
-  return true;
 }
 
 module.exports={
