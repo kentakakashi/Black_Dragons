@@ -9,8 +9,13 @@ function store(data){
   data.tryouts.history ||= [];
   return data.tryouts;
 }
-function channel(guild,name){
-  return guild.channels.cache.find(c=>c.isTextBased()&&c.name?.toLowerCase()===name)||null;
+function configuredChannels(data,guild){
+  const cfg=data?.config?.tryouts||{};
+  return {
+    rules: cfg.rulesChannelId ? guild.channels.cache.get(String(cfg.rulesChannelId)) : null,
+    tryout: cfg.channelId ? guild.channels.cache.get(String(cfg.channelId)) : null,
+    history: cfg.historyChannelId ? guild.channels.cache.get(String(cfg.historyChannelId)) : null
+  };
 }
 function validLink(link){
   try{return new URL(link).protocol==="https:";}catch{return false;}
@@ -57,9 +62,10 @@ async function startTryout(i,c,link){
   if(!validLink(link))return i.reply({content:"❌ Please provide a valid HTTPS server link.",ephemeral:true});
   const s=store(c.data);
   if(s.active)return i.reply({content:"❌ A tryout is already active: **"+s.active.id+"**.",ephemeral:true});
-  const tc=channel(i.guild,"tryout");
-  if(!tc)return i.reply({content:"❌ I couldn't find a text channel named **#tryout**. Create it first.",ephemeral:true});
-  const rc=channel(i.guild,"tryout-rules");
+  const configured=configuredChannels(c.data,i.guild);
+  const tc=configured.tryout;
+  const rc=configured.rules;
+  if(!tc||!rc)return i.reply({content:"❌ Tryout channels are not configured. Use `/setup` → **Tryouts** and select the Rules, Tryout, and History channels first.",ephemeral:true});
   const now=Date.now();
   const t={id:"TRY-"+now.toString(36).toUpperCase(),guildId:i.guildId,channelId:tc.id,rulesChannelId:rc?.id||tc.id,serverLink:link,startedBy:i.user.id,createdAt:now,results:[],announcementMessageId:null};
   const m=await tc.send({content:"@everyone",embeds:[announcement(t)],allowedMentions:{parse:["everyone"]},components:[new ActionRowBuilder().addComponents(new ButtonBuilder().setLabel("JOIN ROBLOX SERVER").setStyle(ButtonStyle.Link).setURL(link).setEmoji("🎮"))]});
