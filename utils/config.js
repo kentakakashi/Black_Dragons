@@ -286,6 +286,23 @@ function buildCommands() {
       ),
 
     new SlashCommandBuilder()
+      .setName('start-tryout')
+      .setDescription('Start a new BLACK DRAGONS live tryout.')
+      .setDefaultMemberPermissions(PermissionFlagsBits.Administrator.toString())
+      .addStringOption(option =>
+        option
+          .setName('server_link')
+          .setDescription('The Roblox server link applicants should join.')
+          .setRequired(true)
+          .setMaxLength(500)
+      ),
+
+    new SlashCommandBuilder()
+      .setName('tryout-result')
+      .setDescription('Record the winner, loser, and points for an active tryout match.')
+      .setDefaultMemberPermissions(PermissionFlagsBits.Administrator.toString()),
+
+    new SlashCommandBuilder()
       .setName('allies')
       .setDescription(
         'Manage the Black Dragons allied clans list.'
