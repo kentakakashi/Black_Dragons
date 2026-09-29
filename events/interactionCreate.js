@@ -68,7 +68,7 @@ module.exports =
             /*
              * Tryout result controls
              */
-            if (customId.startsWith('tryoutres:')) {
+            if (customId.startsWith('tryoutres:') || customId === 'tryout:end') {
               const tryouts = require('../systems/tryouts');
               if (await tryouts.handleButton(interaction, { client, data: client.appData })) return;
             }
