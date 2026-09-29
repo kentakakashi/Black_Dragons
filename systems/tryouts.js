@@ -447,6 +447,11 @@ async function deleteModerationCase(i,c,caseId,page=0){
     active.moderatedUserIds=active.moderatedUserIds.filter(x=>String(x)!==userId);
   }
 
+  c.data.tryouts.moderationDeletedCaseIds ||= [];
+  if(!c.data.tryouts.moderationDeletedCaseIds.includes(String(entry.id))){
+    c.data.tryouts.moderationDeletedCaseIds.push(String(entry.id));
+  }
+
   await saveData(c.data);
 
   await logModerationAction(
