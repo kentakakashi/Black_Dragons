@@ -53,6 +53,13 @@ const defaultData = {
       }
     },
 
+    tryouts: {
+      rulesChannelId: null,
+      channelId: null,
+      historyChannelId: null,
+      staffRoleId: null
+    },
+
     leaderboards: {
       rankingChannelId: null,
       topKillsChannelId: null,
@@ -115,6 +122,11 @@ const defaultData = {
       D: null,
       E: null
     }
+  },
+
+  tryouts: {
+    active: null,
+    history: []
   },
 
   rankUsers: {},
@@ -278,6 +290,15 @@ function normalizeData(saved = {}) {
     ...(saved.config?.helpDesk || {})
   };
 
+  data.config.tryouts = {
+    ...data.config.tryouts,
+    ...(saved.config?.tryouts || {}),
+    rulesChannelId: saved.config?.tryouts?.rulesChannelId || data.config.tryouts.rulesChannelId || null,
+    channelId: saved.config?.tryouts?.channelId || data.config.tryouts.channelId || null,
+    historyChannelId: saved.config?.tryouts?.historyChannelId || data.config.tryouts.historyChannelId || null,
+    staffRoleId: saved.config?.tryouts?.staffRoleId || data.config.tryouts.staffRoleId || null
+  };
+
   data.config.rank = {
     ...data.config.rank,
     ...(saved.config?.rank || {}),
@@ -378,6 +399,13 @@ function normalizeData(saved = {}) {
     data.config.helpDesk.backupRoleId =
       process.env.BACKUP_ROLE_ID;
   }
+
+  data.tryouts = {
+    active: saved.tryouts?.active || null,
+    history: Array.isArray(saved.tryouts?.history)
+      ? saved.tryouts.history
+      : []
+  };
 
   data.rankUsers =
     saved.rankUsers &&
@@ -533,7 +561,8 @@ async function readFirestoreData() {
     configSnap,
     rankConfigSnap,
     metaSnap,
-    countersSnap
+    countersSnap,
+    tryoutsSnap
   ] = await Promise.all([
     firestore
       .collection("config")
@@ -553,6 +582,11 @@ async function readFirestoreData() {
     firestore
       .collection("helpDesk")
       .doc("counters")
+      .get(),
+
+    firestore
+      .collection("tryouts")
+      .doc("server")
       .get()
   ]);
 
@@ -584,6 +618,10 @@ async function readFirestoreData() {
       result.dashboardMessageId =
         meta.dashboardMessageId;
     }
+  }
+
+  if (tryoutsSnap.exists) {
+    result.tryouts = tryoutsSnap.data();
   }
 
   if (countersSnap.exists) {
@@ -942,7 +980,26 @@ function reconcileData(
         ...localData.config.rank.rankRoleIds,
         ...cloudData.config.rank.rankRoleIds
       }
+    },
+
+    tryouts: {
+      ...localData.config.tryouts,
+      ...cloudData.config.tryouts,
+      rulesChannelId: cloudData.config.tryouts?.rulesChannelId || localData.config.tryouts?.rulesChannelId || null,
+      channelId: cloudData.config.tryouts?.channelId || localData.config.tryouts?.channelId || null,
+      historyChannelId: cloudData.config.tryouts?.historyChannelId || localData.config.tryouts?.historyChannelId || null,
+      staffRoleId: cloudData.config.tryouts?.staffRoleId || localData.config.tryouts?.staffRoleId || null
     }
+  };
+
+  data.tryouts = {
+    active: cloudData.tryouts?.active || localData.tryouts?.active || null,
+    history: [
+      ...(localData.tryouts?.history || []),
+      ...(cloudData.tryouts?.history || [])
+    ].filter((entry, index, array) =>
+      array.findIndex(item => String(item?.id || "") === String(entry?.id || "")) === index
+    )
   };
 
   /*
@@ -1158,6 +1215,14 @@ async function saveFirestoreData(
           updatedAt:
             Date.now()
         },
+        { merge: true }
+      ),
+
+    firestore
+      .collection("tryouts")
+      .doc("server")
+      .set(
+        clean.tryouts || { active: null, history: [] },
         { merge: true }
       )
   ]);
