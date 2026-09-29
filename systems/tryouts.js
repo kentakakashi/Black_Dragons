@@ -58,7 +58,7 @@ function announcement(t){
       :"⚔️ BLACK DRAGONS • TRYOUT NOW OPEN")
     .setDescription(closed
       ?"This tryout has officially finished. The official match history has been preserved and archived."
-      :"A new BLACK DRAGONS tryout has officially begun.\\n\\n**The arena is open. The trial is live.**\\nJoin the Roblox server below and wait for Tryout Staff to organize your matchup.\\n\\nStaff will manage matchups, referee fights, record results, and keep the trial moving.")
+      :"A new BLACK DRAGONS tryout has officially begun.\n\n**The arena is open. The trial is live.**\nJoin the Roblox server below and wait for Tryout Staff to organize your matchup.\n\nStaff will manage matchups, referee fights, record results, and keep the trial moving.")
     .addFields(
       {name:"👑 Tryout Host",value:"<@"+t.startedBy+">",inline:true},
       {name:"🆔 Tryout ID",value:t.id,inline:true},
