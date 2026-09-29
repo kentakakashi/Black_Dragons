@@ -102,11 +102,15 @@ function createHomeEmbed(data, notice, guild) {
     "🏆 **Rank System** — registration, review, history and leaderboard\\n"+
     "🎖️ **Rank Roles** — Z through E role mapping\\n"+
     "📋 **Logging** — message, moderation, roles, VC, users, invites, server, channels, bot and general logs\\n"+
-    "🚫 **Blacklist** — public player and clan blacklist channels\\n🏆 **Leaderboards** — permanent Ranking Titles and Top Kills channels\\n\\n"+
+    "🚫 **Blacklist** — public player and clan blacklist channels\\n"+
+    "🏆 **Leaderboards** — permanent Ranking Titles and Top Kills channels\\n"+
+    "⚔️ **Tryouts** — rules, live tryout and history channels\\n\\n"+
     "⚙️ Select settings one by one. Changes stay in a **draft**.\\n"+
     "💾 Press **SAVE ALL** once at the end to save everything together.\\n\\n"+
     "📋 **Logging configured:** "+configured+"/10\\n"+
-    "🚫 **Blacklist channels:** "+blacklistConfigured+"/2\\n🏆 **Leaderboard channels:** "+leaderboardConfigured+"/2"
+    "🚫 **Blacklist channels:** "+blacklistConfigured+"/2\\n"+
+    "🏆 **Leaderboard channels:** "+leaderboardConfigured+"/2\\n"+
+    "⚔️ **Tryout channels:** "+tryoutConfigured+"/3"
   );
 }
 function createCategoryEmbed(data, key, notice, guild) {
