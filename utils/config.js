@@ -340,7 +340,7 @@ function buildCommands() {
           .addSubcommand(sub =>
             sub
               .setName('list')
-              .setDescription('List all active moderation cases.')
+              .setDescription('List all moderation cases.')
           )
       ),
 
