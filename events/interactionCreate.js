@@ -403,6 +403,14 @@ module.exports =
               interaction.customId;
 
             /*
+             * Tryout result modal
+             */
+            if (customId.startsWith('tryoutres:')) {
+              const tryouts = require('../systems/tryouts');
+              if (await tryouts.handleModal(interaction, { client, data: client.appData })) return;
+            }
+
+            /*
              * Allies editor modals
              */
             if (
