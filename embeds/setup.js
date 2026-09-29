@@ -39,6 +39,11 @@ const CATEGORIES = {
     { key: "blacklist_players", label: "Blacklisted Players Channel", type: "channel" },
     { key: "blacklist_clans", label: "Blacklisted Clans Channel", type: "channel" }
   ]},
+  tryouts: { label: "Tryouts", emoji: "⚔️", description: "Configure the channels used by the BLACK DRAGONS tryout system.", settings: [
+    { key: "tryout_rules", label: "Tryout Rules Channel", type: "channel" },
+    { key: "tryout_channel", label: "Tryout Channel", type: "channel" },
+    { key: "tryout_history", label: "Tryout History Channel", type: "channel" }
+  ]},
   leaderboards: { label: "Leaderboards", emoji: "🏆", description: "Ranking-title role mapping plus permanent live leaderboard channels.", settings: [
     { key: "leaderboard_role_shadow_monarch", label: "SHADOW MONARCH Role", type: "role" },
     { key: "leaderboard_role_destruction_monarch", label: "DESTRUCTION MONARCH Role", type: "role" },
@@ -54,10 +59,10 @@ const CATEGORIES = {
     { key: "leaderboard_top_kills", label: "Top Kills Channel", type: "channel" }
   ]}
 };
-const CATEGORY_ORDER = ["helpdesk", "rank_channels", "rank_roles", "logging", "blacklist", "leaderboards"];
+const CATEGORY_ORDER = ["helpdesk", "rank_channels", "rank_roles", "logging", "blacklist", "leaderboards", "tryouts"];
 function getSetting(c, k) { return CATEGORIES[c]?.settings.find(s => s.key === k) || null; }
 function currentValue(data, key) {
-  const h = data.config.helpDesk, r = data.config.rank, logs = data.config.logs?.channels || {}, bl = data.config.blacklist?.public || {}, lb = data.config.leaderboards || {};
+  const h = data.config.helpDesk || {}, r = data.config.rank || {}, logs = data.config.logs?.channels || {}, bl = data.config.blacklist?.public || {}, lb = data.config.leaderboards || {}, t = data.config.tryouts || {};
   const map = {
     helpdesk_channel:h.channelId, war_role:h.warRoleId, backup_role:h.backupRoleId,
     rank_registration:r.registrationChannelId, rank_review:r.reviewChannelId, rank_history:r.historyChannelId,
@@ -66,7 +71,8 @@ function currentValue(data, key) {
     log_users:logs.users, log_invites:logs.invites, log_server:logs.server, log_channels:logs.channels,
     log_bot:logs.bot, log_general:logs.general,
     blacklist_players:bl.playerChannelId, blacklist_clans:bl.clanChannelId,
-    leaderboard_ranking_titles:lb.rankingChannelId, leaderboard_top_kills:lb.topKillsChannelId
+    leaderboard_ranking_titles:lb.rankingChannelId, leaderboard_top_kills:lb.topKillsChannelId,
+    tryout_rules:t.rulesChannelId, tryout_channel:t.channelId, tryout_history:t.historyChannelId
   };
   if(key.startsWith("rank_role_")) return r.rankRoleIds?.[key.replace("rank_role_","")] || null;
   if(key.startsWith("leaderboard_role_")) return lb.rankingRoleIds?.[key.replace("leaderboard_role_","")] || null;
@@ -89,6 +95,7 @@ function createHomeEmbed(data, notice, guild) {
   const configured=CATEGORIES.logging.settings.filter(s=>currentValue(data,s.key)).length;
   const blacklistConfigured=[currentValue(data,"blacklist_players"),currentValue(data,"blacklist_clans")].filter(Boolean).length;
   const leaderboardConfigured=[currentValue(data,"leaderboard_ranking_titles"),currentValue(data,"leaderboard_top_kills")].filter(Boolean).length;
+  const tryoutConfigured=[currentValue(data,"tryout_rules"),currentValue(data,"tryout_channel"),currentValue(data,"tryout_history")].filter(Boolean).length;
   return base().setTitle("🐉 BLACK DRAGONS • BOT SETUP").setDescription(
     (notice?notice+"\\n\\n":"")+"**Choose a category to configure.**\\n\\n"+
     "🛠️ **Help Desk** — channels and request roles\\n"+
