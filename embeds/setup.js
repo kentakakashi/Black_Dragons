@@ -42,7 +42,8 @@ const CATEGORIES = {
   tryouts: { label: "Tryouts", emoji: "⚔️", description: "Configure the channels used by the BLACK DRAGONS tryout system.", settings: [
     { key: "tryout_rules", label: "Tryout Rules Channel", type: "channel" },
     { key: "tryout_channel", label: "Tryout Channel", type: "channel" },
-    { key: "tryout_history", label: "Tryout History Channel", type: "channel" }
+    { key: "tryout_history", label: "Tryout History Channel", type: "channel" },
+    { key: "tryout_staff_role", label: "Tryout Staff Role", type: "role" }
   ]},
   leaderboards: { label: "Leaderboards", emoji: "🏆", description: "Ranking-title role mapping plus permanent live leaderboard channels.", settings: [
     { key: "leaderboard_role_shadow_monarch", label: "SHADOW MONARCH Role", type: "role" },
@@ -72,7 +73,7 @@ function currentValue(data, key) {
     log_bot:logs.bot, log_general:logs.general,
     blacklist_players:bl.playerChannelId, blacklist_clans:bl.clanChannelId,
     leaderboard_ranking_titles:lb.rankingChannelId, leaderboard_top_kills:lb.topKillsChannelId,
-    tryout_rules:t.rulesChannelId, tryout_channel:t.channelId, tryout_history:t.historyChannelId
+    tryout_rules:t.rulesChannelId, tryout_channel:t.channelId, tryout_history:t.historyChannelId, tryout_staff_role:t.staffRoleId
   };
   if(key.startsWith("rank_role_")) return r.rankRoleIds?.[key.replace("rank_role_","")] || null;
   if(key.startsWith("leaderboard_role_")) return lb.rankingRoleIds?.[key.replace("leaderboard_role_","")] || null;
@@ -95,7 +96,7 @@ function createHomeEmbed(data, notice, guild) {
   const configured=CATEGORIES.logging.settings.filter(s=>currentValue(data,s.key)).length;
   const blacklistConfigured=[currentValue(data,"blacklist_players"),currentValue(data,"blacklist_clans")].filter(Boolean).length;
   const leaderboardConfigured=[currentValue(data,"leaderboard_ranking_titles"),currentValue(data,"leaderboard_top_kills")].filter(Boolean).length;
-  const tryoutConfigured=[currentValue(data,"tryout_rules"),currentValue(data,"tryout_channel"),currentValue(data,"tryout_history")].filter(Boolean).length;
+  const tryoutConfigured=[currentValue(data,"tryout_rules"),currentValue(data,"tryout_channel"),currentValue(data,"tryout_history"),currentValue(data,"tryout_staff_role")].filter(Boolean).length;
   return base().setTitle("🐉 BLACK DRAGONS • BOT SETUP").setDescription(
     (notice?notice+"\n\n":"")+"**Choose a category to configure.**\n\n"+
     "🛠️ **Help Desk** — channels and request roles\n"+
@@ -110,7 +111,7 @@ function createHomeEmbed(data, notice, guild) {
     "📋 **Logging configured:** "+configured+"/10\n"+
     "🚫 **Blacklist channels:** "+blacklistConfigured+"/2\n"+
     "🏆 **Leaderboard channels:** "+leaderboardConfigured+"/2\n"+
-    "⚔️ **Tryout channels:** "+tryoutConfigured+"/3"
+    "⚔️ **Tryout setup:** "+tryoutConfigured+"/4"
   );
 }
 function createCategoryEmbed(data, key, notice, guild) {
