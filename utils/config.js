@@ -299,7 +299,7 @@ function buildCommands() {
 
     new SlashCommandBuilder()
       .setName('tryout-result')
-      .setDescription('Record the winner, loser, and points for an active tryout match.')
+      .setDescription('Record the winner, opponent, and kill score for an active tryout match.')
       .setDefaultMemberPermissions(PermissionFlagsBits.Administrator.toString()),
 
     new SlashCommandBuilder()
