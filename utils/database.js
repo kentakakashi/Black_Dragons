@@ -129,7 +129,8 @@ const defaultData = {
     history: [],
     playerStats: {},
     moderation: {},
-    moderationCaseCounter: 0
+    moderationCaseCounter: 0,
+    moderationDeletedCaseIds: []
   },
 
   rankUsers: {},
@@ -416,7 +417,10 @@ function normalizeData(saved = {}) {
       : {},
     moderationCaseCounter: Number.isFinite(Number(saved.tryouts?.moderationCaseCounter))
       ? Number(saved.tryouts.moderationCaseCounter)
-      : 0
+      : 0,
+    moderationDeletedCaseIds: Array.isArray(saved.tryouts?.moderationDeletedCaseIds)
+      ? saved.tryouts.moderationDeletedCaseIds.map(String)
+      : []
   };
 
   data.rankUsers =
@@ -878,6 +882,50 @@ function mergePlayers(
    HISTORY MERGE
 ========================================================= */
 
+function moderationRecordTimestamp(record) {
+  return Math.max(
+    Number(record?.editedAt || 0),
+    Number(record?.createdAt || 0)
+  );
+}
+
+function newestModerationRecord(local, cloud) {
+  if (!local) return cloud;
+  if (!cloud) return local;
+  return moderationRecordTimestamp(cloud) >= moderationRecordTimestamp(local)
+    ? cloud
+    : local;
+}
+
+function mergeModeration(local = {}, cloud = {}) {
+  const users = new Set([
+    ...Object.keys(local || {}),
+    ...Object.keys(cloud || {})
+  ]);
+
+  const merged = {};
+
+  for (const userId of users) {
+    const byId = new Map();
+    const all = [
+      ...(Array.isArray(local?.[userId]) ? local[userId] : []),
+      ...(Array.isArray(cloud?.[userId]) ? cloud[userId] : [])
+    ];
+
+    for (const entry of all) {
+      if (!entry) continue;
+      const key = String(entry.id || ("LEGACY-" + userId + "-" + String(entry.createdAt || "")));
+      byId.set(key, newestModerationRecord(byId.get(key), entry));
+    }
+
+    if (byId.size) {
+      merged[String(userId)] = [...byId.values()];
+    }
+  }
+
+  return merged;
+}
+
 function mergeHistory(
   local = [],
   cloud = []
@@ -1016,15 +1064,73 @@ function reconcileData(
       ...(localData.tryouts?.playerStats || {}),
       ...(cloudData.tryouts?.playerStats || {})
     },
-    moderation: {
-      ...(localData.tryouts?.moderation || {}),
-      ...(cloudData.tryouts?.moderation || {})
-    },
+    moderation: mergeModeration(
+      localData.tryouts?.moderation || {},
+      cloudData.tryouts?.moderation || {}
+    ),
     moderationCaseCounter: Math.max(
       Number(localData.tryouts?.moderationCaseCounter || 0),
       Number(cloudData.tryouts?.moderationCaseCounter || 0)
-    )
+    ),
+    moderationDeletedCaseIds: [
+      ...new Set([
+        ...(localData.tryouts?.moderationDeletedCaseIds || []),
+        ...(cloudData.tryouts?.moderationDeletedCaseIds || [])
+      ].map(String))
+    ]
   };
+
+  /*
+   * Moderation case migration / persistence safety.
+   *
+   * Existing cases created before sequential case numbers were introduced
+   * receive permanent numbers here. Deleted case IDs remain tombstoned so
+   * Firestore's merge semantics cannot resurrect a deleted case on restart.
+   */
+  {
+    const deletedIds = new Set(
+      (data.tryouts.moderationDeletedCaseIds || []).map(String)
+    );
+
+    for (const [userId, cases] of Object.entries(data.tryouts.moderation || {})) {
+      data.tryouts.moderation[userId] = (Array.isArray(cases) ? cases : [])
+        .filter(entry => !deletedIds.has(String(entry?.id || "")));
+    }
+
+    const usedNumbers = new Set();
+    const missing = [];
+    let counter = Math.max(
+      0,
+      Number(data.tryouts.moderationCaseCounter || 0)
+    );
+
+    for (const cases of Object.values(data.tryouts.moderation || {})) {
+      for (const entry of cases) {
+        const n = Number(entry?.caseNumber);
+        if (Number.isInteger(n) && n > 0 && !usedNumbers.has(n)) {
+          usedNumbers.add(n);
+          counter = Math.max(counter, n);
+        } else {
+          missing.push(entry);
+        }
+      }
+    }
+
+    missing.sort(
+      (a, b) => Number(a?.createdAt || 0) - Number(b?.createdAt || 0)
+    );
+
+    for (const entry of missing) {
+      counter += 1;
+      entry.caseNumber = counter;
+    }
+
+    data.tryouts.moderationCaseCounter = counter;
+
+    for (const [userId, cases] of Object.entries(data.tryouts.moderation || {})) {
+      if (!cases.length) delete data.tryouts.moderation[userId];
+    }
+  }
 
   /*
    * Keep config values from local data when cloud
