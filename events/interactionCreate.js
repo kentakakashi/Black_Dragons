@@ -68,7 +68,7 @@ module.exports =
             /*
              * Tryout result controls
              */
-            if (customId.startsWith('tryoutres:') || customId === 'tryout:end') {
+            if (customId.startsWith('tryoutres:') || customId === 'tryout:end' || customId.startsWith('modcase:')) {
               const tryouts = require('../systems/tryouts');
               if (await tryouts.handleButton(interaction, { client, data: client.appData })) return;
             }
@@ -324,7 +324,7 @@ module.exports =
             /*
              * Tryout result selects
              */
-            if (customId.startsWith('tryoutres:')) {
+            if (customId.startsWith('tryoutres:') || customId.startsWith('modcase:') || customId.startsWith('modedit:')) {
               const tryouts = require('../systems/tryouts');
               if (await tryouts.handleSelect(interaction, { client, data: client.appData })) return;
             }
@@ -405,7 +405,7 @@ module.exports =
             /*
              * Tryout result modal
              */
-            if (customId.startsWith('tryoutres:')) {
+            if (customId.startsWith('tryoutres:') || customId.startsWith('modedit:modal:')) {
               const tryouts = require('../systems/tryouts');
               if (await tryouts.handleModal(interaction, { client, data: client.appData })) return;
             }
