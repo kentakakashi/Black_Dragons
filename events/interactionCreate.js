@@ -66,6 +66,14 @@ module.exports =
               interaction.customId;
 
             /*
+             * Tryout result controls
+             */
+            if (customId.startsWith('tryoutres:')) {
+              const tryouts = require('../systems/tryouts');
+              if (await tryouts.handleButton(interaction, { client, data: client.appData })) return;
+            }
+
+            /*
              * Allies editor buttons
              */
             if (
@@ -312,6 +320,14 @@ module.exports =
           ) {
             const customId =
               interaction.customId;
+
+            /*
+             * Tryout result selects
+             */
+            if (customId.startsWith('tryoutres:')) {
+              const tryouts = require('../systems/tryouts');
+              if (await tryouts.handleSelect(interaction, { client, data: client.appData })) return;
+            }
 
             /*
              * Allies editor selects
