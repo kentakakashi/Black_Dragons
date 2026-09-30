@@ -6,53 +6,35 @@ const GEMINI_URL =
 const DEFAULT_MODEL = "gemini-3.5-flash-lite";
 const DEFAULT_MAX_OUTPUT = 1600;
 const DEFAULT_COOLDOWN = 45000;
+const DEFAULT_AUTO_REPLY_CHANCE = 0.12;
 
 const channelCooldowns = new Map();
 const inFlight = new Set();
 
-function envBool(name, fallback = false) {
-  const value = process.env[name];
+function getAIConfig(client) {
+  const saved = client?.appData?.config?.ai || {};
 
-  if (value === undefined) {
-    return fallback;
-  }
-
-  return ["1", "true", "yes", "on"].includes(
-    String(value).toLowerCase()
-  );
-}
-
-function allowedChannelIds() {
-  return String(process.env.AI_CHANNEL_IDS || "")
-    .split(",")
-    .map(value => value.trim())
-    .filter(Boolean);
+  return {
+    channelId: saved.channelId || null,
+    autoChat: saved.autoChat === true
+  };
 }
 
 function isConfigured() {
   return Boolean(process.env.GEMINI_API_KEY);
 }
 
-function channelAllowed(channelId) {
-  const configured = allowedChannelIds();
+function channelAllowed(channelId, client) {
+  const config = getAIConfig(client);
 
-  if (configured.length > 0) {
-    return configured.includes(String(channelId));
-  }
-
-  /*
-   * With no explicit channel list:
-   * - AI_AUTO_CHAT=true means all channels are eligible.
-   * - AI_AUTO_CHAT=false means only direct conversations are eligible.
-   *
-   * This prevents the bot from silently remembering every server message
-   * when auto-chat has not been enabled.
-   */
-  return autoChatEnabled();
+  return Boolean(
+    config.channelId &&
+    String(config.channelId) === String(channelId)
+  );
 }
 
-function autoChatEnabled() {
-  return envBool("AI_AUTO_CHAT", false);
+function autoChatEnabled(client) {
+  return getAIConfig(client).autoChat;
 }
 
 async function wasDirectlyAddressed(message, client) {
@@ -90,12 +72,12 @@ async function wasDirectlyAddressed(message, client) {
   );
 }
 
-function shouldAutoJoin(message) {
-  if (!autoChatEnabled()) {
+function shouldAutoJoin(message, client) {
+  if (!autoChatEnabled(client)) {
     return false;
   }
 
-  if (!channelAllowed(message.channelId)) {
+  if (!channelAllowed(message.channelId, client)) {
     return false;
   }
 
@@ -124,7 +106,7 @@ function shouldAutoJoin(message) {
     Math.max(
       0.01,
       Number(
-        process.env.AI_AUTO_REPLY_CHANCE || 0.12
+        DEFAULT_AUTO_REPLY_CHANCE
       )
     )
   );
@@ -409,16 +391,19 @@ async function handleMessage(
     return;
   }
 
+  const aiConfig = getAIConfig(client);
+
+  if (!aiConfig.channelId || !channelAllowed(message.channelId, client)) {
+    return;
+  }
+
   const directlyAddressed =
     await wasDirectlyAddressed(
       message,
       client
     );
 
-  if (
-    !channelAllowed(message.channelId) &&
-    !directlyAddressed
-  ) {
+  if (!channelAllowed(message.channelId, client)) {
     return;
   }
 
@@ -435,11 +420,10 @@ async function handleMessage(
 
   const shouldSpeak =
     directlyAddressed ||
-    shouldAutoJoin(message);
+    shouldAutoJoin(message, client);
 
   const shouldRemember =
-    channelAllowed(message.channelId) ||
-    directlyAddressed;
+    channelAllowed(message.channelId, client);
 
   if (!shouldRemember) {
     return;
@@ -482,7 +466,7 @@ async function handleMessage(
   inFlight.add(cooldownKey);
 
   if (
-    autoChatEnabled() &&
+    autoChatEnabled(client) &&
     !directlyAddressed
   ) {
     channelCooldowns.set(
@@ -528,7 +512,7 @@ async function handleMessage(
   }
 }
 
-function getStatus() {
+function getStatus(client) {
   return {
     configured:
       isConfigured(),
@@ -538,10 +522,10 @@ function getStatus() {
       DEFAULT_MODEL,
 
     autoChat:
-      autoChatEnabled(),
+      getAIConfig(client).autoChat,
 
-    channelIds:
-      allowedChannelIds()
+    channelId:
+      getAIConfig(client).channelId
   };
 }
 
