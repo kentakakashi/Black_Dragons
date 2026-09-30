@@ -7,7 +7,6 @@ const DEFAULT_MODEL = "gemini-3.5-flash-lite";
 const DEFAULT_MAX_OUTPUT = 800;
 const REQUEST_TIMEOUT = 10000;
 
-const inFlight = new Set();
 
 function getAIConfig(client) {
   const saved = client?.appData?.config?.ai || {};
@@ -428,12 +427,6 @@ async function handleMessage(
     return;
   }
 
-  if (inFlight.has(cooldownKey)) {
-    return;
-  }
-
-  inFlight.add(cooldownKey);
-
   try {
     /*
      * Read memory first, then start the Firestore write in the background.
@@ -500,10 +493,6 @@ async function handleMessage(
         error
       );
     }
-  } finally {
-    inFlight.delete(
-      cooldownKey
-    );
   }
 }
 
