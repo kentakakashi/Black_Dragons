@@ -103,6 +103,7 @@ function createHomeEmbed(data, notice, guild) {
   const blacklistConfigured=[currentValue(data,"blacklist_players"),currentValue(data,"blacklist_clans")].filter(Boolean).length;
   const leaderboardConfigured=[currentValue(data,"leaderboard_ranking_titles"),currentValue(data,"leaderboard_top_kills")].filter(Boolean).length;
   const tryoutConfigured=[currentValue(data,"tryout_rules"),currentValue(data,"tryout_channel"),currentValue(data,"tryout_history"),currentValue(data,"tryout_staff_role")].filter(Boolean).length;
+  const aiChannelConfigured=currentValue(data,"ai_channel") ? 1 : 0;
   return base().setTitle("🐉 BLACK DRAGONS • BOT SETUP").setDescription(
     (notice?notice+"\n\n":"")+"**Choose a category to configure.**\n\n"+
     "🛠️ **Help Desk** — channels and request roles\n"+
@@ -117,7 +118,7 @@ function createHomeEmbed(data, notice, guild) {
     "💾 Press **SAVE ALL** once at the end to save everything together.\n\n"+
     "📋 **Logging configured:** "+configured+"/10\n"+
     "🚫 **Blacklist channels:** "+blacklistConfigured+"/2\n"+
-    "🤖 **AI setup:** "+[currentValue(data,"ai_channel"),currentValue(data,"ai_auto_chat")].filter(v => v !== null && v !== undefined && v !== "").length+"/2\n"+
+    "🤖 **AI channel:** "+aiChannelConfigured+"/1 • **Auto chat:** "+(currentValue(data,"ai_auto_chat") ? "Enabled" : "Disabled")+"\n"+
     "🏆 **Leaderboard channels:** "+leaderboardConfigured+"/2\n"+
     "⚔️ **Tryout setup:** "+tryoutConfigured+"/4"
   );
