@@ -46,6 +46,7 @@ const CATEGORIES = {
     { key: "tryout_staff_role", label: "Tryout Staff Role", type: "role" }
   ]},
   ai: { label: "AI Chat", emoji: "🤖", description: "Choose the channel where BLACK DRAGONS AI lives and whether it may join conversations automatically.", settings: [
+    { key: "ai_enabled", label: "AI Enabled", type: "toggle" },
     { key: "ai_channel", label: "AI Chat Channel", type: "channel" },
     { key: "ai_auto_chat", label: "AI Auto Chat", type: "toggle" }
   ]},
@@ -76,7 +77,7 @@ function currentValue(data, key) {
     log_users:logs.users, log_invites:logs.invites, log_server:logs.server, log_channels:logs.channels,
     log_bot:logs.bot, log_general:logs.general,
     blacklist_players:bl.playerChannelId, blacklist_clans:bl.clanChannelId,
-    ai_channel:ai.channelId, ai_auto_chat:ai.autoChat === true,
+    ai_enabled:ai.enabled !== false, ai_channel:ai.channelId, ai_auto_chat:ai.autoChat === true,
     leaderboard_ranking_titles:lb.rankingChannelId, leaderboard_top_kills:lb.topKillsChannelId,
     tryout_rules:t.rulesChannelId, tryout_channel:t.channelId, tryout_history:t.historyChannelId, tryout_staff_role:t.staffRoleId
   };
@@ -118,7 +119,7 @@ function createHomeEmbed(data, notice, guild) {
     "💾 Press **SAVE ALL** once at the end to save everything together.\n\n"+
     "📋 **Logging configured:** "+configured+"/10\n"+
     "🚫 **Blacklist channels:** "+blacklistConfigured+"/2\n"+
-    "🤖 **AI channel:** "+aiChannelConfigured+"/1 • **Auto chat:** "+(currentValue(data,"ai_auto_chat") ? "Enabled" : "Disabled")+"\n"+
+    "🤖 **AI:** "+(currentValue(data,"ai_enabled") ? "Enabled" : "Disabled")+" • **AI channel:** "+aiChannelConfigured+"/1 • **Auto chat:** "+(currentValue(data,"ai_auto_chat") ? "Enabled" : "Disabled")+"\n"+
     "🏆 **Leaderboard channels:** "+leaderboardConfigured+"/2\n"+
     "⚔️ **Tryout setup:** "+tryoutConfigured+"/4"
   );
