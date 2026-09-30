@@ -5,7 +5,7 @@ const GEMINI_URL =
 
 const DEFAULT_MODEL = "gemini-3.5-flash-lite";
 const DEFAULT_MAX_OUTPUT = 800;
-const REQUEST_TIMEOUT = 10000;
+const REQUEST_TIMEOUT = 20000;
 
 
 function getAIConfig(client) {
@@ -485,7 +485,7 @@ async function handleMessage(
   } catch (error) {
     if (error?.name === "AbortError") {
       console.error(
-        "❌ BLACK DRAGONS AI timed out after 10 seconds."
+        "❌ BLACK DRAGONS AI timed out after 20 seconds."
       );
     } else {
       console.error(
