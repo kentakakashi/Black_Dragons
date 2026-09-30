@@ -306,6 +306,7 @@ async function callModel(
 
     return extractGeminiText(body);
   }
+}
 
 async function sendNaturalReply(
   message,
