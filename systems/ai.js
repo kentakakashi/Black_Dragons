@@ -5,7 +5,6 @@ const GEMINI_URL =
 
 const DEFAULT_MODEL = "gemini-3.5-flash-lite";
 const DEFAULT_MAX_OUTPUT = 800;
-const REQUEST_TIMEOUT = 20000;
 
 
 function getAIConfig(client) {
@@ -232,22 +231,11 @@ async function callModel(
     encodeURIComponent(DEFAULT_MODEL) +
     ":generateContent";
 
-  const controller =
-    new AbortController();
-
-  const timeout =
-    setTimeout(
-      () => controller.abort(),
-      REQUEST_TIMEOUT
-    );
-
-  try {
+  {
     const response = await fetch(
       url,
       {
         method: "POST",
-
-        signal: controller.signal,
 
         headers: {
           "x-goog-api-key":
@@ -317,10 +305,7 @@ async function callModel(
     }
 
     return extractGeminiText(body);
-  } finally {
-    clearTimeout(timeout);
   }
-}
 
 async function sendNaturalReply(
   message,
@@ -483,16 +468,10 @@ async function handleMessage(
       output
     );
   } catch (error) {
-    if (error?.name === "AbortError") {
-      console.error(
-        "❌ BLACK DRAGONS AI timed out after 20 seconds."
-      );
-    } else {
-      console.error(
-        "❌ BLACK DRAGONS AI failed:",
-        error
-      );
-    }
+    console.error(
+      "❌ BLACK DRAGONS AI failed:",
+      error
+    );
   }
 }
 
