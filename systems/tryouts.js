@@ -1273,6 +1273,115 @@ function resultEmbed(t,r,g){
     .setTimestamp(r.timestamp);
 }
 
+async function endTryout(i,c){
+  if(!isTryoutStaff(i,c.data)){
+    await i.reply({
+      content:"❌ Only an Administrator or the configured **Tryout Staff** role can end a tryout.",
+      ephemeral:true
+    });
+    return true;
+  }
+
+  const t=store(c.data).active;
+  if(!t){
+    await i.reply({
+      content:"❌ There is no active tryout to end.",
+      ephemeral:true
+    });
+    return true;
+  }
+
+  await i.deferReply({ephemeral:true});
+
+  t.status="ended";
+  t.endedAt=Date.now();
+  t.endedBy=i.user.id;
+
+  syncHistory(c.data,t);
+  store(c.data).active=null;
+  await saveData(c.data);
+
+  try{
+    const tc=await i.client.channels.fetch(t.channelId).catch(()=>null);
+    const announcementMessage=tc?.messages?.fetch
+      ?(t.announcementMessageId?await tc.messages.fetch(t.announcementMessageId).catch(()=>null):null)
+      :null;
+
+    if(announcementMessage){
+      try{
+        await announcementMessage.edit({
+          embeds:[announcement(t)],
+          components:[]
+        });
+      }catch(error){
+        console.error("❌ Tryout announcement update failed:",error);
+      }
+    }else{
+      console.log("ℹ️ Tryout announcement was missing or deleted. Ending from the saved tryout state.");
+    }
+
+    const hc=await i.client.channels.fetch(t.historyChannelId).catch(()=>null);
+    const historyMessage=hc?.messages?.fetch
+      ?(t.historyMessageId?await hc.messages.fetch(t.historyMessageId).catch(()=>null):null)
+      :null;
+
+    if(historyMessage){
+      try{
+        await historyMessage.edit({embeds:[historyEmbed(t)],components:[]});
+      }catch(error){
+        console.error("❌ Tryout history message update failed:",error);
+      }
+    }
+
+    if(t.historyThreadId){
+      const thread=await i.client.channels.fetch(t.historyThreadId).catch(()=>null);
+
+      if(thread?.isThread()){
+        try{
+          await thread.send({
+            embeds:[
+              new EmbedBuilder()
+                .setColor(0x555555)
+                .setTitle("🏁 "+t.id+" • TRYOUT COMPLETED")
+                .setDescription("The tryout has officially ended. **"+t.results.length+" match"+(t.results.length===1?" was":"es were")+" recorded.")
+                .addFields(
+                  {name:"Ended By",value:"<@"+t.endedBy+">",inline:true},
+                  {name:"Status",value:"**COMPLETED • ARCHIVED**",inline:true}
+                )
+                .setTimestamp(t.endedAt)
+            ]
+          });
+        }catch(error){
+          console.error("❌ Tryout completion log failed:",error);
+        }
+
+        try{
+          await thread.setLocked(true,"Tryout ended");
+        }catch(error){
+          console.error("❌ Tryout history thread lock failed:",error);
+        }
+
+        try{
+          await thread.setArchived(true,"Tryout ended");
+        }catch(error){
+          console.error("❌ Tryout history thread archive failed:",error);
+        }
+      }
+    }
+  }catch(error){
+    console.error("❌ Tryout end display update failed:",error);
+  }
+
+  await i.editReply({
+    content:"✅ **"+t.id+"** has been ended. The history and match record have been preserved."+
+      (!t.announcementMessageId
+        ?"\n\nℹ️ The original tryout announcement was missing, but the active tryout was safely ended from the saved database state."
+        :"")
+  });
+
+  return true;
+}
+
 async function handleButton(i,c){
   const id=i.customId;
 
@@ -1286,96 +1395,7 @@ async function handleButton(i,c){
   }
 
   if(id==="tryout:end"){
-    const t=store(c.data).active;
-    if(!t){
-      await i.reply({content:"❌ There is no active tryout to end.",ephemeral:true});
-      return true;
-    }
-    if(!isTryoutStaff(i,c.data)){
-      await i.reply({content:"❌ Only an Administrator or the configured **Tryout Staff** role can end a tryout.",ephemeral:true});
-      return true;
-    }
-
-    await i.deferReply({ephemeral:true});
-    t.status="ended";
-    t.endedAt=Date.now();
-    t.endedBy=i.user.id;
-
-    syncHistory(c.data,t);
-    store(c.data).active=null;
-    await saveData(c.data);
-
-    try{
-      const tc=await i.client.channels.fetch(t.channelId).catch(()=>null);
-      const announcementMessage=tc?.messages?.fetch
-        ?(t.announcementMessageId?await tc.messages.fetch(t.announcementMessageId).catch(()=>null):null)
-        :null;
-
-      if(announcementMessage){
-        try{
-          await announcementMessage.edit({
-            embeds:[announcement(t)],
-            components:[]
-          });
-        }catch(error){
-          console.error("❌ Tryout announcement update failed:",error);
-        }
-      }
-
-      const hc=await i.client.channels.fetch(t.historyChannelId).catch(()=>null);
-      const historyMessage=hc?.messages?.fetch
-        ?(t.historyMessageId?await hc.messages.fetch(t.historyMessageId).catch(()=>null):null)
-        :null;
-
-      if(historyMessage){
-        try{
-          await historyMessage.edit({embeds:[historyEmbed(t)],components:[]});
-        }catch(error){
-          console.error("❌ Tryout history message update failed:",error);
-        }
-      }
-
-      if(t.historyThreadId){
-        const thread=await i.client.channels.fetch(t.historyThreadId).catch(()=>null);
-
-        if(thread?.isThread()){
-          try{
-            await thread.send({
-              embeds:[
-                new EmbedBuilder()
-                  .setColor(0x555555)
-                  .setTitle("🏁 "+t.id+" • TRYOUT COMPLETED")
-                  .setDescription("The tryout has officially ended. **"+t.results.length+" match"+(t.results.length===1?" was":"es were")+" recorded.")
-                  .addFields(
-                    {name:"Ended By",value:"<@"+t.endedBy+">",inline:true},
-                    {name:"Status",value:"**COMPLETED • ARCHIVED**",inline:true}
-                  )
-                  .setTimestamp(t.endedAt)
-              ]
-            });
-          }catch(error){
-            console.error("❌ Tryout completion log failed:",error);
-          }
-
-          try{
-            await thread.setLocked(true,"Tryout ended");
-          }catch(error){
-            console.error("❌ Tryout history thread lock failed:",error);
-          }
-
-          try{
-            await thread.setArchived(true,"Tryout ended");
-          }catch(error){
-            console.error("❌ Tryout history thread archive failed:",error);
-          }
-        }
-      }
-    }catch(error){
-      console.error("❌ Tryout end display update failed:",error);
-    }
-
-    await i.editReply({content:"✅ **"+t.id+"** has been ended. The history and match record have been preserved."});
-    return true;
+    return endTryout(i,c);
   }
 
   if(!id.startsWith("tryoutres:"))return false;
@@ -1577,6 +1597,7 @@ async function handleModal(i,c){
 module.exports={
   getStore:store,
   startTryout,
+  endTryout,
   startResult,
   handleSelect,
   handleButton,
