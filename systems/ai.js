@@ -6,7 +6,6 @@ const GEMINI_URL =
 const DEFAULT_MODEL = "gemini-3.5-flash-lite";
 const DEFAULT_MAX_OUTPUT = 1600;
 const DEFAULT_COOLDOWN = 45000;
-const DEFAULT_AUTO_REPLY_CHANCE = 0.12;
 
 const channelCooldowns = new Map();
 const inFlight = new Set();
@@ -98,17 +97,14 @@ function shouldAutoJoin(message, client) {
     return false;
   }
 
-  const chance = Math.min(
-    0.35,
-    Math.max(
-      0.01,
-      Number(
-        DEFAULT_AUTO_REPLY_CHANCE
-      )
-    )
-  );
-
-  return Math.random() < chance;
+  /*
+   * Auto chat is deliberately not a fixed random percentage.
+   * The model itself decides whether the conversation needs BLACK DRAGONS
+   * by returning SKIP when it has nothing useful or natural to add.
+   *
+   * Cooldown remains the anti-spam protection.
+   */
+  return true;
 }
 
 function splitForDiscord(text) {
