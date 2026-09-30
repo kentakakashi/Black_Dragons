@@ -53,6 +53,11 @@ const defaultData = {
       }
     },
 
+    ai: {
+      channelId: null,
+      autoChat: false
+    },
+
     tryouts: {
       rulesChannelId: null,
       channelId: null,
@@ -292,6 +297,13 @@ function normalizeData(saved = {}) {
   data.config.helpDesk = {
     ...data.config.helpDesk,
     ...(saved.config?.helpDesk || {})
+  };
+
+  data.config.ai = {
+    ...data.config.ai,
+    ...(saved.config?.ai || {}),
+    channelId: saved.config?.ai?.channelId || data.config.ai.channelId || null,
+    autoChat: saved.config?.ai?.autoChat === true
   };
 
   data.config.tryouts = {
