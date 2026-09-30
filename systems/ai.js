@@ -2,7 +2,7 @@ const aiMemory = require("../utils/aiMemory");
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = "gpt-5.6-luna";
-const DEFAULT_MAX_OUTPUT = 900;
+const DEFAULT_MAX_OUTPUT = 1800;
 const DEFAULT_COOLDOWN = 45000;
 
 const channelCooldowns = new Map();
