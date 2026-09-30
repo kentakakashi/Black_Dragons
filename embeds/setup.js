@@ -86,6 +86,7 @@ function currentValue(data, key) {
 }
 function valueText(data, s, guild) {
   const v=currentValue(data,s.key);
+  if(s.type==="toggle") return v ? "🟢 Enabled" : "🔴 Disabled";
   if(!v) return "Not configured";
 
   if(s.type==="role"){
@@ -93,7 +94,6 @@ function valueText(data, s, guild) {
     return role ? role.toString() : "⚠️ Role unavailable ("+v+")";
   }
 
-  if(s.type==="toggle") return v ? "🟢 Enabled" : "🔴 Disabled";
   const channel=guild?.channels?.cache?.get(v);
   return channel ? "#"+channel.name : "⚠️ Channel unavailable ("+v+")";
 }
