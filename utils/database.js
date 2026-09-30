@@ -54,6 +54,7 @@ const defaultData = {
     },
 
     ai: {
+      enabled: true,
       channelId: null,
       autoChat: false
     },
@@ -302,6 +303,7 @@ function normalizeData(saved = {}) {
   data.config.ai = {
     ...data.config.ai,
     ...(saved.config?.ai || {}),
+    enabled: saved.config?.ai?.enabled !== false,
     channelId: saved.config?.ai?.channelId || data.config.ai.channelId || null,
     autoChat: saved.config?.ai?.autoChat === true
   };
