@@ -191,9 +191,9 @@ function buildInstructions(message, directlyAddressed) {
 
     "CONVERSATION BEHAVIOR:\n" +
     "- If directly addressed, answer naturally and actually engage with what was said.\n" +
-    "- If not directly addressed, decide whether joining the conversation would genuinely add something.\n" +
-    "- If joining would be awkward or unnecessary, output exactly SKIP.\n" +
-    "- Never output SKIP when the user is clearly talking to you.\n" +
+    "- Every user message in the configured AI channel must receive a reply.\n" +
+    "- Do not skip messages because they seem casual, short, random, or unimportant.\n" +
+    "- Never output SKIP. Always produce a natural response to the message.\n" +
     "- Keep replies conversational. Do not turn every response into a giant essay.\n" +
     "- Longer answers are fine when the topic actually needs them.\n" +
     "- Follow the conversation rather than answering only the newest sentence in isolation.\n" +
@@ -476,10 +476,7 @@ async function handleMessage(
         directlyAddressed
       );
 
-    if (
-      !output ||
-      output.trim().toUpperCase() === "SKIP"
-    ) {
+    if (!output) {
       return;
     }
 
