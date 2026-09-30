@@ -45,6 +45,10 @@ const CATEGORIES = {
     { key: "tryout_history", label: "Tryout History Channel", type: "channel" },
     { key: "tryout_staff_role", label: "Tryout Staff Role", type: "role" }
   ]},
+  ai: { label: "AI Chat", emoji: "🤖", description: "Choose the channel where BLACK DRAGONS AI lives and whether it may join conversations automatically.", settings: [
+    { key: "ai_channel", label: "AI Chat Channel", type: "channel" },
+    { key: "ai_auto_chat", label: "AI Auto Chat", type: "toggle" }
+  ]},
   leaderboards: { label: "Leaderboards", emoji: "🏆", description: "Ranking-title role mapping plus permanent live leaderboard channels.", settings: [
     { key: "leaderboard_role_shadow_monarch", label: "SHADOW MONARCH Role", type: "role" },
     { key: "leaderboard_role_destruction_monarch", label: "DESTRUCTION MONARCH Role", type: "role" },
@@ -60,10 +64,10 @@ const CATEGORIES = {
     { key: "leaderboard_top_kills", label: "Top Kills Channel", type: "channel" }
   ]}
 };
-const CATEGORY_ORDER = ["helpdesk", "rank_channels", "rank_roles", "logging", "blacklist", "leaderboards", "tryouts"];
+const CATEGORY_ORDER = ["helpdesk", "rank_channels", "rank_roles", "logging", "blacklist", "ai", "leaderboards", "tryouts"];
 function getSetting(c, k) { return CATEGORIES[c]?.settings.find(s => s.key === k) || null; }
 function currentValue(data, key) {
-  const h = data.config.helpDesk || {}, r = data.config.rank || {}, logs = data.config.logs?.channels || {}, bl = data.config.blacklist?.public || {}, lb = data.config.leaderboards || {}, t = data.config.tryouts || {};
+  const h = data.config.helpDesk || {}, r = data.config.rank || {}, logs = data.config.logs?.channels || {}, bl = data.config.blacklist?.public || {}, ai = data.config.ai || {}, lb = data.config.leaderboards || {}, t = data.config.tryouts || {};
   const map = {
     helpdesk_channel:h.channelId, war_role:h.warRoleId, backup_role:h.backupRoleId,
     rank_registration:r.registrationChannelId, rank_review:r.reviewChannelId, rank_history:r.historyChannelId,
@@ -72,6 +76,7 @@ function currentValue(data, key) {
     log_users:logs.users, log_invites:logs.invites, log_server:logs.server, log_channels:logs.channels,
     log_bot:logs.bot, log_general:logs.general,
     blacklist_players:bl.playerChannelId, blacklist_clans:bl.clanChannelId,
+    ai_channel:ai.channelId, ai_auto_chat:ai.autoChat === true,
     leaderboard_ranking_titles:lb.rankingChannelId, leaderboard_top_kills:lb.topKillsChannelId,
     tryout_rules:t.rulesChannelId, tryout_channel:t.channelId, tryout_history:t.historyChannelId, tryout_staff_role:t.staffRoleId
   };
@@ -88,6 +93,7 @@ function valueText(data, s, guild) {
     return role ? role.toString() : "⚠️ Role unavailable ("+v+")";
   }
 
+  if(s.type==="toggle") return v ? "🟢 Enabled" : "🔴 Disabled";
   const channel=guild?.channels?.cache?.get(v);
   return channel ? "#"+channel.name : "⚠️ Channel unavailable ("+v+")";
 }
@@ -104,12 +110,14 @@ function createHomeEmbed(data, notice, guild) {
     "🎖️ **Rank Roles** — Z through E role mapping\n"+
     "📋 **Logging** — message, moderation, roles, VC, users, invites, server, channels, bot and general logs\n"+
     "🚫 **Blacklist** — public player and clan blacklist channels\n"+
+    "🤖 **AI Chat** — AI channel and automatic conversation setting\n"+
     "🏆 **Leaderboards** — permanent Ranking Titles and Top Kills channels\n"+
     "⚔️ **Tryouts** — rules, live tryout and history channels\n\n"+
     "⚙️ Select settings one by one. Changes stay in a **draft**.\n"+
     "💾 Press **SAVE ALL** once at the end to save everything together.\n\n"+
     "📋 **Logging configured:** "+configured+"/10\n"+
     "🚫 **Blacklist channels:** "+blacklistConfigured+"/2\n"+
+    "🤖 **AI setup:** "+[currentValue(data,"ai_channel"),currentValue(data,"ai_auto_chat")].filter(v => v !== null && v !== undefined && v !== "").length+"/2\n"+
     "🏆 **Leaderboard channels:** "+leaderboardConfigured+"/2\n"+
     "⚔️ **Tryout setup:** "+tryoutConfigured+"/4"
   );
@@ -121,6 +129,7 @@ function createCategoryEmbed(data, key, notice, guild) {
 }
 function createSettingEmbed(data, c, k, guild) {
   const cat=CATEGORIES[c], s=getSetting(c,k);
-  return base().setTitle(cat.emoji+" "+cat.label+" • "+s.label).setDescription("Current draft value: **"+valueText(data,s,guild)+"**\n\nChoose the new "+(s.type==="role"?"role":"channel")+" below.\n\n💾 **Nothing is permanently saved until SAVE ALL.**");
+  const actionText = s.type==="role" ? "role" : s.type==="channel" ? "channel" : "setting";
+  return base().setTitle(cat.emoji+" "+cat.label+" • "+s.label).setDescription("Current draft value: **"+valueText(data,s,guild)+"**\n\n"+(s.type==="toggle" ? "Choose whether this setting should be enabled or disabled." : "Choose the new "+actionText+" below.")+"\n\n💾 **Nothing is permanently saved until SAVE ALL.**");
 }
 module.exports = { CATEGORIES, CATEGORY_ORDER, getSetting, currentValue, createHomeEmbed, createCategoryEmbed, createSettingEmbed };
