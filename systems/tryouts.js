@@ -838,7 +838,39 @@ function moderationListEmbed(data,guild){
 async function showModerationStatus(i,c){
   const staff=isTryoutStaff(i,c.data);
   if(staff){
-    await i.reply({embeds:[moderationListEmbed(c.data,i.guild)],ephemeral:true});
+    const active=store(c.data).active;
+    const activeEmbed=moderationListEmbed(c.data,i.guild);
+
+    if(active){
+      activeEmbed.addFields({
+        name:"⚔️ ACTIVE TRYOUT",
+        value:
+          "**"+String(active.id)+"** is currently active.\n"+
+          "Host: <@"+String(active.startedBy)+">\n"+
+          "Matches Recorded: **"+String(active.results?.length||0)+"**",
+        inline:false
+      });
+
+      await i.reply({
+        embeds:[activeEmbed],
+        components:[
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId("tryout:end")
+              .setLabel("END ACTIVE TRYOUT")
+              .setEmoji("🏁")
+              .setStyle(ButtonStyle.Danger)
+          )
+        ],
+        ephemeral:true
+      });
+      return true;
+    }
+
+    await i.reply({
+      embeds:[activeEmbed],
+      ephemeral:true
+    });
     return true;
   }
 
