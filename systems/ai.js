@@ -34,10 +34,21 @@ function isConfigured() {
 function channelAllowed(channelId) {
   const configured = allowedChannelIds();
 
-  return (
-    configured.length === 0 ||
-    configured.includes(String(channelId))
-  );
+  if (configured.length > 0) {
+    return configured.includes(
+      String(channelId)
+    );
+  }
+
+  /*
+   * With no explicit channel list:
+   * - AI_AUTO_CHAT=true means all channels are eligible.
+   * - AI_AUTO_CHAT=false means only direct conversations are eligible.
+   *
+   * This prevents the bot from silently writing every server message
+   * to Firestore when auto-chat has not been enabled.
+   */
+  return autoChatEnabled();
 }
 
 function autoChatEnabled() {
