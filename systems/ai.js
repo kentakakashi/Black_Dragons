@@ -83,10 +83,7 @@ function shouldAutoJoin(message, client) {
 
   const now = Date.now();
 
-  const cooldown = Number(
-    process.env.AI_COOLDOWN_MS ||
-    DEFAULT_COOLDOWN
-  );
+  const cooldown = DEFAULT_COOLDOWN;
 
   const cooldownKey =
     String(message.guild.id) +
@@ -518,7 +515,6 @@ function getStatus(client) {
       isConfigured(),
 
     model:
-      process.env.GEMINI_MODEL ||
       DEFAULT_MODEL,
 
     autoChat:
