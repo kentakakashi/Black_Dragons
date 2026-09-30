@@ -301,6 +301,10 @@ function buildCommands() {
       .setDescription('Record the winner, opponent, and kill score for an active tryout match.'),
 
     new SlashCommandBuilder()
+      .setName('tryout-end')
+      .setDescription('End the currently active BLACK DRAGONS tryout, even if its announcement was deleted.'),
+
+    new SlashCommandBuilder()
       .setName('tryout-status')
       .setDescription('View your tryout eligibility, or view all active restrictions if you are Tryout Staff.'),
 
