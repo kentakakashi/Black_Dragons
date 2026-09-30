@@ -1172,7 +1172,7 @@ async function startTryout(i,c,link){
 
   try{
     const m=await tc.send({
-      content:"@everyone",
+      content:"@..everyone",
       embeds:[announcement(t)],
       allowedMentions:{parse:["everyone"]},
       components:[
