@@ -562,10 +562,15 @@ async function processBatch(
       message.channelId
     );
 
-  for (
-    const item of batch
-  ) {
-    await aiMemory.appendMessage(
+  /*
+   * Do not wait for Firestore here.
+   *
+   * The AI request should start immediately after the 2-second debounce.
+   * Memory persistence runs in the background so database latency cannot
+   * become part of the visible reply latency.
+   */
+  for (const item of batch) {
+    void aiMemory.appendMessage(
       message.guild.id,
       message.channelId,
       {
