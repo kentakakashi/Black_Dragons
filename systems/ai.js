@@ -230,6 +230,7 @@ function formatHistory(
     (
       conversationState.topic ||
       conversationState.context ||
+      conversationState.callback ||
       conversationState.participants?.length
     )
   ) {
@@ -240,6 +241,8 @@ function formatHistory(
         String(conversationState.topic || "unknown"),
       "CONTEXT: " +
         String(conversationState.context || "unknown"),
+      "CALLBACK: " +
+        String(conversationState.callback || "none"),
       "PARTICIPANTS: " +
         (
           Array.isArray(conversationState.participants)
@@ -790,7 +793,7 @@ async function sendNaturalReply(
     splitForDiscord(text);
 
   if (!chunks.length) {
-    return;
+    return [];
   }
 
   for (
@@ -798,9 +801,43 @@ async function sendNaturalReply(
     index < chunks.length;
     index += 1
   ) {
-    await message.channel
-      .sendTyping()
-      .catch(() => {});
+    /*
+     * Keep the first response quick. Later messages get a short,
+     * length-aware pause so multi-part replies feel less mechanical.
+     */
+    if (index > 0) {
+      const messageLength =
+        chunks[index].length;
+
+      const baseDelay =
+        Math.min(
+          1800,
+          Math.max(
+            650,
+            350 + messageLength * 8
+          )
+        );
+
+      const jitter =
+        Math.floor(
+          Math.random() * 251
+        );
+
+      await message.channel
+        .sendTyping()
+        .catch(() => {});
+
+      await new Promise(resolve =>
+        setTimeout(
+          resolve,
+          baseDelay + jitter
+        )
+      );
+    } else {
+      await message.channel
+        .sendTyping()
+        .catch(() => {});
+    }
 
     if (index === 0) {
       await message.channel.send({
