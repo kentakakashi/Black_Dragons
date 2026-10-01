@@ -5,12 +5,138 @@ const MAX_MESSAGE_LENGTH = 1200;
 const cache = new Map();
 const writeQueues = new Map();
 
+const USER_MEMORY_COLLECTION = "aiUserMemory";
+const MAX_USER_FACTS = 20;
+const MAX_USER_FACT_LENGTH = 180;
+const userMemoryCache = new Map();
+const userMemoryWriteQueues = new Map();
+
 function key(guildId, channelId) {
   return `${String(guildId)}_${String(channelId)}`;
 }
 
 function getDb() {
   return getFirestore();
+}
+
+function userMemoryKey(guildId, userId) {
+  return `${String(guildId)}_${String(userId)}`;
+}
+
+function cleanUserFacts(facts) {
+  if (!Array.isArray(facts)) {
+    return [];
+  }
+
+  const unique = [];
+  const seen = new Set();
+
+  for (const item of facts) {
+    const fact = String(item || "")
+      .replace(/\\s+/g, " ")
+      .trim()
+      .slice(0, MAX_USER_FACT_LENGTH);
+
+    const normalized = fact.toLowerCase();
+
+    if (!fact || seen.has(normalized)) {
+      continue;
+    }
+
+    seen.add(normalized);
+    unique.push(fact);
+  }
+
+  return unique.slice(-MAX_USER_FACTS);
+}
+
+async function getUserMemory(guildId, userId) {
+  const memoryKey = userMemoryKey(guildId, userId);
+
+  if (userMemoryCache.has(memoryKey)) {
+    return userMemoryCache.get(memoryKey).slice();
+  }
+
+  const snap = await getDb()
+    .collection(USER_MEMORY_COLLECTION)
+    .doc(memoryKey)
+    .get();
+
+  const facts = cleanUserFacts(
+    snap.exists ? snap.data()?.facts : []
+  );
+
+  userMemoryCache.set(memoryKey, facts);
+  return facts.slice();
+}
+
+async function updateUserMemory(
+  guildId,
+  userId,
+  rememberFacts,
+  forgetFacts,
+  forgetAll = false
+) {
+  const memoryKey = userMemoryKey(guildId, userId);
+  const previous = userMemoryWriteQueues.get(memoryKey) || Promise.resolve();
+
+  const next = previous
+    .catch(() => {})
+    .then(async () => {
+      const ref = getDb()
+        .collection(USER_MEMORY_COLLECTION)
+        .doc(memoryKey);
+
+      const snap = await ref.get();
+      let facts = cleanUserFacts(
+        snap.exists ? snap.data()?.facts : []
+      );
+
+      if (forgetAll) {
+        facts = [];
+      } else {
+        const removals = new Set(
+          cleanUserFacts(forgetFacts)
+            .map(fact => fact.toLowerCase())
+        );
+
+        if (removals.size) {
+          facts = facts.filter(
+            fact => !removals.has(fact.toLowerCase())
+          );
+        }
+
+        const existing = new Set(
+          facts.map(fact => fact.toLowerCase())
+        );
+
+        for (const fact of cleanUserFacts(rememberFacts)) {
+          const normalized = fact.toLowerCase();
+
+          if (!existing.has(normalized)) {
+            facts.push(fact);
+            existing.add(normalized);
+          }
+        }
+
+        facts = facts.slice(-MAX_USER_FACTS);
+      }
+
+      await ref.set({
+        facts,
+        updatedAt: Date.now()
+      });
+
+      userMemoryCache.set(memoryKey, facts);
+      return facts.slice();
+    })
+    .catch(error => {
+      console.error("❌ AI user memory save failed:", error);
+      return getUserMemory(guildId, userId).catch(() => []);
+    });
+
+  userMemoryWriteQueues.set(memoryKey, next);
+  return next;
 }
 
 function cleanMessage(message) {
@@ -268,5 +394,7 @@ module.exports = {
   appendBotMessage,
   getMessages,
   getConversationState,
-  updateConversationState
+  updateConversationState,
+  getUserMemory,
+  updateUserMemory
 };
