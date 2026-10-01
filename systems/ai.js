@@ -200,67 +200,98 @@ function formatReplyContext(replyTarget) {
 
 function formatHistory(
   messages,
+  liveMessages,
   batchMessages
 ) {
-  const recent =
-    messages.slice(-35);
+  const lines = [];
 
-  const lines =
-    recent.map(item => {
-      const speaker =
-        item.isBot
-          ? "BLACK DRAGONS"
-          : String(
-              item.username ||
-                "Unknown"
-            );
+  lines.push(
+    "[PERSISTENT AI MEMORY]",
+    "Older conversation context. Use it for continuity, but prefer the LIVE DISCORD CONTEXT when the two differ.",
+    ""
+  );
 
-      const userId =
-        item.isBot
-          ? "AI"
-          : String(item.userId);
+  for (const item of messages.slice(-35)) {
+    const speaker =
+      item.isBot
+        ? "BLACK DRAGONS"
+        : String(item.username || "Unknown");
 
-      return (
-        "[" +
+    const userId =
+      item.isBot
+        ? "AI"
+        : String(item.userId);
+
+    lines.push(
+      "[" +
         speaker +
         " | USER_ID " +
         userId +
         "] " +
         String(item.content)
-      );
-    });
+    );
+  }
+
+  lines.push(
+    "",
+    "[LIVE DISCORD CONTEXT]",
+    "These are the actual recent messages currently visible in the Discord channel.",
+    "Read them in chronological order.",
+    "Different USER_ID values are different people.",
+    "This live context is the primary source for understanding what people are talking about right now.",
+    ""
+  );
+
+  for (const item of liveMessages) {
+    const speaker =
+      item.isBot
+        ? "BLACK DRAGONS"
+        : String(item.username || "Unknown");
+
+    const userId =
+      item.isBot
+        ? "AI"
+        : String(item.userId || "unknown");
+
+    let line =
+      "[" +
+      speaker +
+      " | USER_ID " +
+      userId +
+      " | MESSAGE_ID " +
+      String(item.id) +
+      "] " +
+      String(item.content || "");
+
+    if (item.replyTo) {
+      line +=
+        " [REPLY_TO_MESSAGE_ID " +
+        String(item.replyTo) +
+        "]";
+    }
+
+    lines.push(line);
+  }
 
   lines.push(
     "",
     "[CURRENT USER MESSAGE BATCH]",
     "These messages were sent by the SAME USER during one short burst.",
-    "Treat them as one conversational turn and answer the whole burst."
+    "They are already included in the live context. Treat them as one conversational turn."
   );
 
-  for (
-    const item of batchMessages
-  ) {
+  for (const item of batchMessages) {
     lines.push(
       "[CURRENT MESSAGE | " +
-        String(
-          item.username ||
-            "Unknown"
-        ) +
+        String(item.username || "Unknown") +
         " | USER_ID " +
-        String(
-          item.userId ||
-            "unknown"
-        ) +
+        String(item.userId || "unknown") +
         "] " +
-        String(
-          item.content || ""
-        )
+        String(item.content || "")
     );
 
     const replyContext =
-      formatReplyContext(
-        item.replyTarget
-      );
+      formatReplyContext(item.replyTarget);
 
     if (replyContext) {
       lines.push(replyContext);
@@ -268,6 +299,40 @@ function formatHistory(
   }
 
   return lines.join("\n");
+}
+
+async function getLiveConversation(message) {
+  try {
+    const fetched =
+      await message.channel.messages.fetch({ limit: 50 });
+
+    return Array.from(fetched.values())
+      .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
+      .map(item => ({
+        id: item.id,
+        userId: item.author?.id || "unknown",
+        username:
+          item.author?.id === message.client.user?.id
+            ? "BLACK DRAGONS"
+            : (
+                item.member?.displayName ||
+                item.author?.username ||
+                "Unknown"
+              ),
+        content: String(item.content || "").slice(0, 2000),
+        isBot:
+          item.author?.id === message.client.user?.id,
+        replyTo:
+          item.reference?.messageId || null
+      }));
+  } catch (error) {
+    console.warn(
+      "⚠️ BLACK DRAGONS could not fetch live AI conversation context:",
+      error?.message || error
+    );
+
+    return [];
+  }
 }
 
 function buildInstructions(
@@ -301,11 +366,13 @@ function buildInstructions(
     "- Never use skull emojis as a default reaction.\n\n" +
 
     "CONTEXT:\n" +
-    "- The CURRENT USER MESSAGE BATCH is what you are answering.\n" +
-    "- Prior messages are context only.\n" +
-    "- If a current message is a reply to BLACK DRAGONS, the MESSAGE BEING REPLIED TO is highly important context.\n" +
-    "- Never answer an older unrelated message instead of the current batch.\n" +
-    "- Different USER_ID values are different people. Never merge them.\n" +
+    "- The LIVE DISCORD CONTEXT contains the actual recent conversation and is the primary source of truth for the current social situation.\n" +
+    "- Read the live messages chronologically before deciding what the current user means.\n" +
+    "- Prior AI memory is useful for continuity, but it is secondary to the live Discord conversation.\n" +
+    "- If a current message is a reply to BLACK DRAGONS, the referenced message is highly important context.\n" +
+    "- Pay attention to who is talking to whom, not just the words in the latest message.\n" +
+    "- A message from another user can change the meaning of the current conversation.\n" +
+    "- Never merge different USER_ID values into one person.\n" +
     "- Do not invent personal facts.\n" +
     "- Do not pretend you saw messages that are not supplied.\n\n" +
 
@@ -367,6 +434,7 @@ function extractGeminiText(body) {
 async function callModel(
   message,
   history,
+  liveMessages,
   directlyAddressed,
   batchMessages
 ) {
@@ -416,6 +484,7 @@ async function callModel(
                     "RECENT DISCORD CONTEXT:\n" +
                     formatHistory(
                       history,
+                      liveMessages,
                       batchMessages
                     )
                 }
@@ -563,6 +632,15 @@ async function processBatch(
     );
 
   /*
+   * Fetch the actual Discord conversation after the debounce.
+   *
+   * AI memory writes are intentionally asynchronous, so live Discord
+   * history is the primary source for understanding the current room.
+   */
+  const liveMessages =
+    await getLiveConversation(message);
+
+  /*
    * Do not wait for Firestore here.
    *
    * The AI request should start immediately after the 2-second debounce.
@@ -599,6 +677,7 @@ async function processBatch(
     await callModel(
       message,
       history,
+      liveMessages,
       directlyAddressed,
       batch.map(item => ({
         userId:
