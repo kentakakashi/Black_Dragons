@@ -33,7 +33,7 @@ function cleanUserFacts(facts) {
 
   for (const item of facts) {
     const fact = String(item || "")
-      .replace(/\\s+/g, " ")
+      .replace(/\s+/g, " ")
       .trim()
       .slice(0, MAX_USER_FACT_LENGTH);
 
