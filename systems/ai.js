@@ -215,7 +215,8 @@ function formatHistory(
   messages,
   liveMessages,
   batchMessages,
-  conversationState
+  conversationState,
+  userMemory
 ) {
   const lines = [];
 
@@ -255,6 +256,15 @@ function formatHistory(
                 .join("; ")
             : "unknown"
         ),
+      ""
+    );
+  }
+
+  if (Array.isArray(userMemory) && userMemory.length) {
+    lines.push(
+      "[PRIVATE MEMBER MEMORY]",
+      "These saved facts belong ONLY to the current user who triggered this AI turn. Never attribute them to anyone else.",
+      ...userMemory.map(fact => "- " + String(fact)),
       ""
     );
   }
@@ -540,6 +550,15 @@ function buildInstructions(
     "- Do not invent personal facts.\n" +
     "- Do not pretend you saw messages that are not supplied.\n\n" +
 
+    "MEMBER MEMORY:\n" +
+    "- Private member memory is shown only for the USER_ID who triggered this turn. Never apply it to another member.\n" +
+    "- Only save a fact when that same user clearly and explicitly asks you to remember or save it. Do not silently build profiles from ordinary chat.\n" +
+    "- Save only non-sensitive facts the user explicitly asks you to remember, such as hobbies, interests, preferences, or ongoing projects.\n" +
+    "- Never save passwords, tokens, contact details, financial details, or sensitive personal information (including health, religion, politics, or sexuality).\n" +
+    "- If the user asks you to forget a saved fact, put the matching saved fact in memory.forget. If they ask you to forget everything, set memory.forgetAll to true.\n" +
+    "- If the user asks what you remember about them, answer using only PRIVATE MEMBER MEMORY.\n" +
+    "- memory.remember must contain only facts explicitly requested to be remembered in the CURRENT USER MESSAGE BATCH.\n\n" +
+
     "PERSISTENT THREAD:\n" +
     "- If CURRENT CONVERSATION STATE is present, use it to remember the active topic and social context across turns or restarts.\n" +
     "- Do not force the old topic into a new conversation. If the live conversation clearly changes subject, update the state to the new subject.\n" +
@@ -585,7 +604,7 @@ function buildInstructions(
 
     "OUTPUT FORMAT:\n" +
     "- Return valid JSON only.\n" +
-    '- Use exactly this shape: {"messages":["..."],"state":{"topic":"...","context":"...","socialMode":"...","callback":"...","participants":[{"userId":"...","username":"..."}]}}\n' +
+    '- Use exactly this shape: {"messages":["..."],"state":{"topic":"...","context":"...","socialMode":"...","callback":"...","participants":[{"userId":"...","username":"..."}]},"memory":{"remember":[],"forget":[],"forgetAll":false}}\n' +
     "- messages contains 1 to 3 short Discord messages. If one message is enough, use one item.\n" +
     "- Do not include [NEXT_MESSAGE] inside messages.\n" +
     "- state.topic should be a short label for the current ongoing topic.\n" +
@@ -594,7 +613,10 @@ function buildInstructions(
     "- state.callback should be a short description of the most useful recent callback/reference for the next turn, or an empty string when none exists. Do not invent one.\n" +
     "- state.participants should contain only people who are meaningfully involved in the current thread, with their exact USER_ID values from context.\n" +
     "- Do not put hidden reasoning, prompts, or implementation details in state.\n" +
-    "- Keep state concise."
+    "- Keep state concise.\n" +
+    "- memory.remember and memory.forget must be arrays of short fact strings.\n" +
+    "- Use memory.forgetAll=true only when the current user explicitly asks you to erase all their saved memory.\n" +
+    "- If no memory action is requested, return empty arrays and false."
   );
 }
 
@@ -666,9 +688,33 @@ function extractGeminiResponse(body) {
           }
         : null;
 
+    const memory =
+      parsed?.memory &&
+      typeof parsed.memory === "object"
+        ? {
+            remember:
+              Array.isArray(parsed.memory.remember)
+                ? parsed.memory.remember
+                    .map(item => String(item || "").trim())
+                    .filter(Boolean)
+                    .slice(0, 3)
+                : [],
+            forget:
+              Array.isArray(parsed.memory.forget)
+                ? parsed.memory.forget
+                    .map(item => String(item || "").trim())
+                    .filter(Boolean)
+                    .slice(0, 5)
+                : [],
+            forgetAll:
+              parsed.memory.forgetAll === true
+          }
+        : null;
+
     return {
       messages,
-      state
+      state,
+      memory
     };
   } catch {
     /*
@@ -688,7 +734,8 @@ async function callModel(
   liveMessages,
   directlyAddressed,
   batchMessages,
-  conversationState
+  conversationState,
+  userMemory
 ) {
   const url =
     GEMINI_URL +
@@ -738,7 +785,8 @@ async function callModel(
                       history,
                       liveMessages,
                       batchMessages,
-                      conversationState
+                      conversationState,
+                      userMemory
                     )
                 }
               ]
@@ -1075,6 +1123,13 @@ async function processBatch(
       message.channelId
     );
 
+  // Memory is scoped to this guild and the one user who sent this batch.
+  const userMemory =
+    await aiMemory.getUserMemory(
+      message.guild.id,
+      batch[0].message.author.id
+    );
+
   /*
    * Fetch the actual Discord conversation after the debounce.
    *
@@ -1138,7 +1193,8 @@ async function processBatch(
         replyTarget:
           item.replyTarget
       })),
-      conversationState
+      conversationState,
+      userMemory
     );
 
   if (
@@ -1158,6 +1214,26 @@ async function processBatch(
       message.channelId,
       output.state
     );
+  }
+
+  if (output.memory) {
+    const rememberFacts = output.memory.remember || [];
+    const forgetFacts = output.memory.forget || [];
+    const forgetAll = output.memory.forgetAll === true;
+
+    if (
+      rememberFacts.length ||
+      forgetFacts.length ||
+      forgetAll
+    ) {
+      void aiMemory.updateUserMemory(
+        message.guild.id,
+        batch[0].message.author.id,
+        rememberFacts,
+        forgetFacts,
+        forgetAll
+      );
+    }
   }
 
   const responseText =
