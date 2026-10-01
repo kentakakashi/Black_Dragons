@@ -116,6 +116,61 @@ function buildCommands() {
       ),
 
     new SlashCommandBuilder()
+      .setName('ai-knowledge')
+      .setDescription("Manage BLACK DRAGONS' persistent server AI knowledge.")
+      .setDefaultMemberPermissions(
+        PermissionFlagsBits.Administrator.toString()
+      )
+      .addSubcommand(sub =>
+        sub
+          .setName("add-text")
+          .setDescription("Add a server-specific knowledge note.")
+          .addStringOption(option =>
+            option
+              .setName("title")
+              .setDescription("Short name for this knowledge source.")
+              .setRequired(true)
+              .setMaxLength(120)
+          )
+          .addStringOption(option =>
+            option
+              .setName("text")
+              .setDescription("Knowledge BLACK DRAGONS should remember for this server.")
+              .setRequired(true)
+              .setMaxLength(4000)
+          )
+      )
+      .addSubcommand(sub =>
+        sub
+          .setName("add-url")
+          .setDescription("Read a webpage and add it to server AI knowledge.")
+          .addStringOption(option =>
+            option
+              .setName("url")
+              .setDescription("The public http(s) URL to index.")
+              .setRequired(true)
+              .setMaxLength(500)
+          )
+      )
+      .addSubcommand(sub =>
+        sub
+          .setName("list")
+          .setDescription("List this server's AI knowledge sources.")
+      )
+      .addSubcommand(sub =>
+        sub
+          .setName("remove")
+          .setDescription("Remove one AI knowledge source by ID.")
+          .addStringOption(option =>
+            option
+              .setName("source_id")
+              .setDescription("The source ID shown by /ai-knowledge list.")
+              .setRequired(true)
+              .setMaxLength(100)
+          )
+      ),
+
+    new SlashCommandBuilder()
       .setName('blacklist')
       .setDescription('Manage the Black Dragons player and clan blacklist.')
       .setDefaultMemberPermissions(
