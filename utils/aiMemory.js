@@ -40,7 +40,35 @@ async function loadChannel(guildId, channelId) {
       ? snap.data().messages.slice(-MAX_MESSAGES)
       : [];
 
-  const state = { messages };
+  const savedState =
+    snap.exists && snap.data()?.state &&
+    typeof snap.data().state === "object"
+      ? snap.data().state
+      : {};
+
+  const state = {
+    messages,
+    conversationState: {
+      topic:
+        String(savedState.topic || "").slice(0, 200),
+      context:
+        String(savedState.context || "").slice(0, 500),
+      participants:
+        Array.isArray(savedState.participants)
+          ? savedState.participants
+              .slice(0, 12)
+              .map(item => ({
+                userId:
+                  String(item?.userId || "unknown"),
+                username:
+                  String(item?.username || "Unknown")
+                    .slice(0, 100)
+              }))
+          : [],
+      updatedAt:
+        Number(savedState.updatedAt || 0)
+    }
+  };
   cache.set(cacheKey, state);
   return state;
 }
@@ -51,6 +79,20 @@ function queueWrite(guildId, channelId, state) {
 
   const snapshot = {
     messages: state.messages.slice(-MAX_MESSAGES),
+    state: {
+      topic:
+        String(state.conversationState?.topic || "")
+          .slice(0, 200),
+      context:
+        String(state.conversationState?.context || "")
+          .slice(0, 500),
+      participants:
+        Array.isArray(state.conversationState?.participants)
+          ? state.conversationState.participants
+              .slice(0, 12)
+          : [],
+      updatedAt: Date.now()
+    },
     updatedAt: Date.now()
   };
 
@@ -122,9 +164,85 @@ async function getMessages(
   );
 }
 
+async function getConversationState(
+  guildId,
+  channelId
+) {
+  const state =
+    await loadChannel(
+      guildId,
+      channelId
+    );
+
+  return {
+    topic:
+      String(
+        state.conversationState?.topic || ""
+      ),
+    context:
+      String(
+        state.conversationState?.context || ""
+      ),
+    participants:
+      Array.isArray(
+        state.conversationState?.participants
+      )
+        ? state.conversationState.participants.slice(0, 12)
+        : [],
+    updatedAt:
+      Number(
+        state.conversationState?.updatedAt || 0
+      )
+  };
+}
+
+async function updateConversationState(
+  guildId,
+  channelId,
+  nextState
+) {
+  const state =
+    await loadChannel(
+      guildId,
+      channelId
+    );
+
+  state.conversationState = {
+    topic:
+      String(nextState?.topic || "")
+        .slice(0, 200),
+    context:
+      String(nextState?.context || "")
+        .slice(0, 500),
+    participants:
+      Array.isArray(nextState?.participants)
+        ? nextState.participants
+            .slice(0, 12)
+            .map(item => ({
+              userId:
+                String(item?.userId || "unknown"),
+              username:
+                String(item?.username || "Unknown")
+                  .slice(0, 100)
+            }))
+        : [],
+    updatedAt: Date.now()
+  };
+
+  await queueWrite(
+    guildId,
+    channelId,
+    state
+  );
+
+  return state.conversationState;
+}
+
 module.exports = {
   loadChannel,
   appendMessage,
   appendBotMessage,
-  getMessages
+  getMessages,
+  getConversationState,
+  updateConversationState
 };
