@@ -23,6 +23,12 @@ function userMemoryKey(guildId, userId) {
   return `${String(guildId)}_${String(userId)}`;
 }
 
+function isSafeUserFact(fact) {
+  return !/\\b(password|passcode|token|api key|secret|home address|phone number|email address|bank account|credit card|medical|health|diagnos|medication|religion|politic|sexual orientation|sex life)\\b/i.test(
+    String(fact || "")
+  );
+}
+
 function cleanUserFacts(facts) {
   if (!Array.isArray(facts)) {
     return [];
@@ -111,6 +117,10 @@ async function updateUserMemory(
         );
 
         for (const fact of cleanUserFacts(rememberFacts)) {
+          if (!isSafeUserFact(fact)) {
+            continue;
+          }
+
           const normalized = fact.toLowerCase();
 
           if (!existing.has(normalized)) {
@@ -132,7 +142,7 @@ async function updateUserMemory(
     })
     .catch(error => {
       console.error("❌ AI user memory save failed:", error);
-      return getUserMemory(guildId, userId).catch(() => []);
+      return null;
     });
 
   userMemoryWriteQueues.set(memoryKey, next);
