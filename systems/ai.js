@@ -497,11 +497,43 @@ async function getLiveConversation(message) {
   }
 }
 
+
+/*
+ * Nyxie-inspired conversational state machine, adapted for BLACK DRAGONS.
+ * Topic labels guide the bot's reply style; they are not profiles or diagnoses
+ * of the member speaking.
+ */
+function detectAITopicContext(text) {
+  const value = String(text || "");
+  if (/\b(hbg|heroes battlegrounds|roblox|gaming|gameplay|combo|ranked|valorant|minecraft|fortnite|genshin)\b/i.test(value)) {
+    return "gaming";
+  }
+  if (/\b(anime|manga|episode|arc|filler|one piece|mha|aot|jjk|jujutsu|naruto|demon slayer|dragon ball|solo leveling)\b/i.test(value)) {
+    return "anime";
+  }
+  if (/\b(sad|lonely|stressed|upset|scared|nervous|rough day|bad day|need to talk|having a hard time|going through)\b/i.test(value)) {
+    return "supportive";
+  }
+  return "casual";
+}
+
+function transitionAIEmotion(current, text, topicContext) {
+  const value = String(text || "");
+  if (/\b(you're so cute|you are so cute|you're amazing|you are amazing|i appreciate you|thanks for being here)\b/i.test(value)) {
+    return "flustered";
+  }
+  if (topicContext === "gaming" || topicContext === "anime") return "excited";
+  if (topicContext === "supportive") return "caring";
+  if (!current || current === "neutral") return "playful";
+  return current;
+}
+
 function buildInstructions(
   message,
   directlyAddressed,
   batchMessages,
-  conversationState
+  conversationState,
+  botMoodState
 ) {
   return (
     "You are BLACK DRAGONS, a Discord server resident.\n\n" +
@@ -574,6 +606,14 @@ function buildInstructions(
     "- If a user clearly refers back to something recently discussed, answer using that earlier context instead of pretending the reference is meaningless.\n" +
     "- If multiple earlier things could match a vague reference, use the strongest contextual match; only ask for clarification when the ambiguity materially changes the answer.\n" +
     "- When making a callback to an older point, do not invent details that are not present in live context or persistent state.\n\n" +
+
+    "BLACK DRAGONS MOOD AND ENERGY:\n" +
+    "BOT MOOD: " + String(botMoodState?.mood || "neutral") + "\n" +
+    "BOT ENERGY: " + String(botMoodState?.energy ?? 70) + "/90\n" +
+    "These describe BLACK DRAGONS only, never the member speaking.\n" +
+    "CURRENT REPLY MODE: " + String(conversationState?.emotionalState || "neutral") + "\n" +
+    "CURRENT TOPIC MODE: " + String(conversationState?.topicContext || "casual") + "\n" +
+    "Use these as light style guidance; always follow the live conversation first.\n\n" +
 
     "SAVED THREAD SNAPSHOT:\n" +
     "TOPIC: " + String(conversationState?.topic || "none") + "\n" +
@@ -746,7 +786,8 @@ async function callModel(
   directlyAddressed,
   batchMessages,
   conversationState,
-  userMemory
+  userMemory,
+  botMoodState
 ) {
   const url =
     GEMINI_URL +
@@ -779,7 +820,8 @@ async function callModel(
                     message,
                     directlyAddressed,
                     batchMessages,
-                    conversationState
+                    conversationState,
+                    botMoodState
                   )
               }
             ]
@@ -1135,6 +1177,20 @@ async function processBatch(
       message.channelId
     );
 
+  const batchText = batch
+    .map(item => String(item.message.content || ""))
+    .join(" ");
+  const topicContext = detectAITopicContext(batchText);
+  conversationState.topicContext = topicContext;
+  conversationState.emotionalState = transitionAIEmotion(
+    conversationState.emotionalState,
+    batchText,
+    topicContext
+  );
+
+  // This is BLACK DRAGONS' own mood/energy, not an assessment of any member.
+  const botMoodState = await aiMemory.advanceBotMood(message.guild.id);
+
   // Memory is scoped to this guild and the one user who sent this batch.
   let userMemory = [];
 
@@ -1220,7 +1276,8 @@ async function processBatch(
             item.replyTarget
         })),
         conversationState,
-        userMemory
+        userMemory,
+        botMoodState
       );
   } catch (error) {
     await aiMemory.recordAIRequest(
@@ -1258,13 +1315,15 @@ async function processBatch(
     output.messages.length
   );
 
-  if (output.state) {
-    void aiMemory.updateConversationState(
-      message.guild.id,
-      message.channelId,
-      output.state
-    );
-  }
+  void aiMemory.updateConversationState(
+    message.guild.id,
+    message.channelId,
+    {
+      ...(output.state || {}),
+      emotionalState: conversationState.emotionalState,
+      topicContext: conversationState.topicContext
+    }
+  );
 
   let memberMemorySaveFailed = false;
 
