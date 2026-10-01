@@ -56,7 +56,10 @@ const defaultData = {
     ai: {
       enabled: true,
       channelId: null,
-      autoChat: false
+      autoChat: false,
+      knowledge: true,
+      webSearch: true,
+      gifReactions: true
     },
 
     tryouts: {
@@ -305,7 +308,10 @@ function normalizeData(saved = {}) {
     ...(saved.config?.ai || {}),
     enabled: saved.config?.ai?.enabled !== false,
     channelId: saved.config?.ai?.channelId || data.config.ai.channelId || null,
-    autoChat: saved.config?.ai?.autoChat === true
+    autoChat: saved.config?.ai?.autoChat === true,
+    knowledge: saved.config?.ai?.knowledge !== false,
+    webSearch: saved.config?.ai?.webSearch !== false,
+    gifReactions: saved.config?.ai?.gifReactions !== false
   };
 
   data.config.tryouts = {
