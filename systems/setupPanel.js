@@ -96,7 +96,10 @@ else if(k==="ai_enabled")d.config.ai.enabled=Boolean(v);else if(k==="ai_channel"
 else if(k==="ai_auto_chat")d.config.ai.autoChat=Boolean(v);
 else if(k==="ai_knowledge")d.config.ai.knowledge=Boolean(v);
 else if(k==="ai_web_search")d.config.ai.webSearch=Boolean(v);
-else if(k==="ai_gif_reactions")d.config.ai.gifReactions=Boolean(v);
+else if(k==="ai_gif_reactions")d.config.ai.gifReactions=Boolean(v);else if(k==="ai_tone")d.config.ai.tone=v;
+else if(k==="ai_humor")d.config.ai.humor=v;
+else if(k==="ai_friendliness")d.config.ai.friendliness=v;
+else if(k==="ai_response_length")d.config.ai.responseLength=v;
 else if(k.startsWith("leaderboard_role_"))d.config.leaderboards.rankingRoleIds[k.slice(17)]=v;
 else if(k==="leaderboard_ranking_titles")d.config.leaderboards.rankingChannelId=v;
 else if(k==="leaderboard_top_kills")d.config.leaderboards.topKillsChannelId=v;else if(k==="tryout_rules")d.config.tryouts.rulesChannelId=v;else if(k==="tryout_channel")d.config.tryouts.channelId=v;else if(k==="tryout_history")d.config.tryouts.historyChannelId=v;else if(k==="tryout_staff_role")d.config.tryouts.staffRoleId=v;d.rankConfig={...(d.rankConfig||{}),registrationChannelId:d.config.rank.registrationChannelId,reviewChannelId:d.config.rank.reviewChannelId,historyChannelId:d.config.rank.historyChannelId,rankRoleIds:{...((d.rankConfig||{}).rankRoleIds||{}),...(d.config.rank.rankRoleIds||{})}}}
