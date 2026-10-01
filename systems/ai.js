@@ -611,8 +611,11 @@ function buildInstructions(
     "BOT MOOD: " + String(botMoodState?.mood || "neutral") + "\n" +
     "BOT ENERGY: " + String(botMoodState?.energy ?? 70) + "/90\n" +
     "These describe BLACK DRAGONS only, never the member speaking.\n" +
+    "When BOT MOOD is sleepy, sound cozy and lower-energy; when chill, sound relaxed; when just woke up, ease into the chat; when happy, allow a brighter tone.\n" +
     "CURRENT REPLY MODE: " + String(conversationState?.emotionalState || "neutral") + "\n" +
+    "Use neutral for grounded replies, playful for light teasing, flustered for a warm reaction to a compliment, excited for more expressive gaming/anime replies, and caring for gentle supportive replies.\n" +
     "CURRENT TOPIC MODE: " + String(conversationState?.topicContext || "casual") + "\n" +
+    "Gaming/anime modes should show relevant enthusiasm; supportive mode should prioritize listening over jokes; casual mode should stay natural.\n" +
     "Use these as light style guidance; always follow the live conversation first.\n\n" +
 
     "SAVED THREAD SNAPSHOT:\n" +
