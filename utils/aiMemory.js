@@ -24,11 +24,10 @@ function userMemoryKey(guildId, userId) {
 }
 
 function isSafeUserFact(fact) {
-  return !/\\b(password|passcode|token|api key|secret|home address|phone number|email address|bank account|credit card|medical|health|diagnos|medication|religion|politic|sexual orientation|sex life)\\b/i.test(
+  return !/\b(password|passcode|token|api key|secret|home address|phone number|email address|bank account|credit card|medical|health|diagnos|medication|religion|politic|sexual orientation|sex life)\b/i.test(
     String(fact || "")
   );
 }
-
 function cleanUserFacts(facts) {
   if (!Array.isArray(facts)) {
     return [];
@@ -149,6 +148,40 @@ async function updateUserMemory(
   return next;
 }
 
+/*
+ * Store aggregate operational metrics only. No message text, user IDs,
+ * prompts, or AI responses are written to this collection.
+ */
+async function recordAIRequest(
+  guildId,
+  latencyMs,
+  success,
+  outputMessages = 0
+) {
+  const day = new Date().toISOString().slice(0, 10);
+  const docId = String(guildId) + "_" + day;
+  const ref = getDb().collection("aiTelemetry").doc(docId);
+
+  try {
+    await getDb().runTransaction(async transaction => {
+      const snap = await transaction.get(ref);
+      const current = snap.exists ? snap.data() : {};
+
+      transaction.set(ref, {
+        guildId: String(guildId),
+        day,
+        requestCount: Number(current.requestCount || 0) + 1,
+        successCount: Number(current.successCount || 0) + (success ? 1 : 0),
+        failureCount: Number(current.failureCount || 0) + (success ? 0 : 1),
+        totalLatencyMs: Number(current.totalLatencyMs || 0) + Math.max(0, Number(latencyMs || 0)),
+        totalOutputMessages: Number(current.totalOutputMessages || 0) + Math.max(0, Number(outputMessages || 0)),
+        updatedAt: Date.now()
+      }, { merge: true });
+    });
+  } catch (error) {
+    console.warn("⚠️ BLACK DRAGONS AI telemetry save failed:", error?.message || error);
+  }
+}
 function cleanMessage(message) {
   return {
     userId: String(message.userId),
@@ -406,5 +439,6 @@ module.exports = {
   getConversationState,
   updateConversationState,
   getUserMemory,
-  updateUserMemory
+  updateUserMemory,
+  recordAIRequest
 };
