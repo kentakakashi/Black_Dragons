@@ -6,6 +6,7 @@ const cache = new Map();
 const writeQueues = new Map();
 
 const USER_MEMORY_COLLECTION = "aiUserMemory";
+const BOT_STATE_COLLECTION = "aiBotState";
 const MAX_USER_FACTS = 20;
 const MAX_USER_FACT_LENGTH = 180;
 const userMemoryCache = new Map();
@@ -182,6 +183,39 @@ async function recordAIRequest(
     console.warn("⚠️ BLACK DRAGONS AI telemetry save failed:", error?.message || error);
   }
 }
+
+/*
+ * Persistent BLACK DRAGONS mood/energy state.
+ * This describes the bot's conversational energy, never a member's mood.
+ * A little energy returns during inactivity so the bot cannot get stuck sleepy.
+ */
+async function advanceBotMood(guildId, now = Date.now()) {
+  const ref = getDb().collection(BOT_STATE_COLLECTION).doc(String(guildId));
+  try {
+    return await getDb().runTransaction(async transaction => {
+      const snap = await transaction.get(ref);
+      const saved = snap.exists ? snap.data() : {};
+      const previousEnergy = Math.max(0, Math.min(90, Number(saved.energy ?? 90)));
+      const lastActive = Number(saved.lastActive || now);
+      const idleMs = Math.max(0, now - lastActive);
+      const recoveredEnergy = Math.min(90, previousEnergy + Math.floor(idleMs / (30 * 60 * 1000)));
+      const energy = Math.max(0, recoveredEnergy - 1);
+      const idleHours = idleMs / (60 * 60 * 1000);
+      let mood = String(saved.mood || "happy");
+      if (energy < 20) mood = "sleepy";
+      else if (energy < 40) mood = "chill";
+      else if (idleHours > 6) mood = "just woke up";
+      else if (energy > 70) mood = "happy";
+      const next = { mood, energy, lastActive: now, updatedAt: now };
+      transaction.set(ref, next, { merge: true });
+      return next;
+    });
+  } catch (error) {
+    console.warn("⚠️ BLACK DRAGONS bot mood save failed:", error?.message || error);
+    return { mood: "neutral", energy: 70, lastActive: now };
+  }
+}
+
 function cleanMessage(message) {
   return {
     userId: String(message.userId),
@@ -226,6 +260,10 @@ async function loadChannel(guildId, channelId) {
         String(savedState.socialMode || "casual").slice(0, 40),
       callback:
         String(savedState.callback || "").slice(0, 300),
+      emotionalState:
+        String(savedState.emotionalState || "neutral").slice(0, 30),
+      topicContext:
+        String(savedState.topicContext || "casual").slice(0, 30),
       participants:
         Array.isArray(savedState.participants)
           ? savedState.participants
@@ -265,6 +303,10 @@ function queueWrite(guildId, channelId, state) {
       callback:
         String(state.conversationState?.callback || "")
           .slice(0, 300),
+      emotionalState:
+        String(state.conversationState?.emotionalState || "neutral").slice(0, 30),
+      topicContext:
+        String(state.conversationState?.topicContext || "casual").slice(0, 30),
       participants:
         Array.isArray(state.conversationState?.participants)
           ? state.conversationState.participants
@@ -370,6 +412,10 @@ async function getConversationState(
       String(
         state.conversationState?.callback || ""
       ),
+    emotionalState:
+      String(state.conversationState?.emotionalState || "neutral"),
+    topicContext:
+      String(state.conversationState?.topicContext || "casual"),
     participants:
       Array.isArray(
         state.conversationState?.participants
@@ -407,6 +453,14 @@ async function updateConversationState(
     callback:
       String(nextState?.callback || "")
         .slice(0, 300),
+    emotionalState:
+      ["neutral", "playful", "flustered", "excited", "caring"].includes(String(nextState?.emotionalState || ""))
+        ? String(nextState.emotionalState)
+        : String(state.conversationState?.emotionalState || "neutral"),
+    topicContext:
+      ["casual", "gaming", "anime", "supportive"].includes(String(nextState?.topicContext || ""))
+        ? String(nextState.topicContext)
+        : String(state.conversationState?.topicContext || "casual"),
     participants:
       Array.isArray(nextState?.participants)
         ? nextState.participants
@@ -438,6 +492,7 @@ module.exports = {
   getMessages,
   getConversationState,
   updateConversationState,
+  advanceBotMood,
   getUserMemory,
   updateUserMemory,
   recordAIRequest
