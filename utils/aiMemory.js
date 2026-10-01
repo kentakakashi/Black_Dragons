@@ -442,16 +442,16 @@ async function updateConversationState(
 
   state.conversationState = {
     topic:
-      String(nextState?.topic || "")
+      String(nextState?.topic ?? state.conversationState?.topic ?? "")
         .slice(0, 200),
     context:
-      String(nextState?.context || "")
+      String(nextState?.context ?? state.conversationState?.context ?? "")
         .slice(0, 500),
     socialMode:
-      String(nextState?.socialMode || "casual")
+      String(nextState?.socialMode ?? state.conversationState?.socialMode ?? "casual")
         .slice(0, 40),
     callback:
-      String(nextState?.callback || "")
+      String(nextState?.callback ?? state.conversationState?.callback ?? "")
         .slice(0, 300),
     emotionalState:
       ["neutral", "playful", "flustered", "excited", "caring"].includes(String(nextState?.emotionalState || ""))
@@ -472,7 +472,9 @@ async function updateConversationState(
                 String(item?.username || "Unknown")
                   .slice(0, 100)
             }))
-        : [],
+        : Array.isArray(state.conversationState?.participants)
+          ? state.conversationState.participants.slice(0, 12)
+          : [],
     updatedAt: Date.now()
   };
 
