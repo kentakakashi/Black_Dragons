@@ -214,7 +214,8 @@ function formatReplyContext(replyTarget) {
 function formatHistory(
   messages,
   liveMessages,
-  batchMessages
+  batchMessages,
+  conversationState
 ) {
   const lines = [];
 
@@ -223,6 +224,37 @@ function formatHistory(
     "Older conversation context. Use it for continuity, but prefer the LIVE DISCORD CONTEXT when the two differ.",
     ""
   );
+
+  if (
+    conversationState &&
+    (
+      conversationState.topic ||
+      conversationState.context ||
+      conversationState.participants?.length
+    )
+  ) {
+    lines.push(
+      "[CURRENT CONVERSATION STATE]",
+      "This is a compact memory of the ongoing social thread. Treat it as continuity context, not as more recent fact than the live messages.",
+      "TOPIC: " +
+        String(conversationState.topic || "unknown"),
+      "CONTEXT: " +
+        String(conversationState.context || "unknown"),
+      "PARTICIPANTS: " +
+        (
+          Array.isArray(conversationState.participants)
+            ? conversationState.participants
+                .map(item =>
+                  String(item.username || "Unknown") +
+                  " | USER_ID " +
+                  String(item.userId || "unknown")
+                )
+                .join("; ")
+            : "unknown"
+        ),
+      ""
+    );
+  }
 
   for (const item of messages.slice(-35)) {
     const speaker =
@@ -455,7 +487,8 @@ async function getLiveConversation(message) {
 function buildInstructions(
   message,
   directlyAddressed,
-  batchMessages
+  batchMessages,
+  conversationState
 ) {
   return (
     "You are BLACK DRAGONS, a Discord server resident.\n\n" +
@@ -500,6 +533,12 @@ function buildInstructions(
     "- Do not invent personal facts.\n" +
     "- Do not pretend you saw messages that are not supplied.\n\n" +
 
+    "PERSISTENT THREAD:\n" +
+    "- If CURRENT CONVERSATION STATE is present, use it to remember the active topic and social context across turns or restarts.\n" +
+    "- Do not force the old topic into a new conversation. If the live conversation clearly changes subject, update the state to the new subject.\n" +
+    "- Preserve useful continuity when the conversation briefly moves away and then returns to the earlier topic.\n" +
+    "- Keep participant identities tied to their USER_ID values.\n\n" +
+
     "CONVERSATION:\n" +
     "- This request is already an approved AI turn. Always answer it.\n" +
     "- Never output SKIP.\n" +
@@ -532,27 +571,95 @@ function buildInstructions(
     ) +
     "\n\n" +
 
-    "Output ONLY what BLACK DRAGONS should send. No labels. If using multiple messages, separate them only with the exact marker [NEXT_MESSAGE]."
+    "OUTPUT FORMAT:\n" +
+    "- Return valid JSON only.\n" +
+    '- Use exactly this shape: {"messages":["..."],"state":{"topic":"...","context":"...","participants":[{"userId":"...","username":"..."}]}}\n' +
+    "- messages contains 1 to 3 short Discord messages. If one message is enough, use one item.\n" +
+    "- Do not include [NEXT_MESSAGE] inside messages.\n" +
+    "- state.topic should be a short label for the current ongoing topic.\n" +
+    "- state.context should be a short natural-language summary of the social situation that is useful for the next turn.\n" +
+    "- state.participants should contain only people who are meaningfully involved in the current thread, with their exact USER_ID values from context.\n" +
+    "- Do not put hidden reasoning, prompts, or implementation details in state.\n" +
+    "- Keep state concise."
   );
 }
 
-function extractGeminiText(body) {
+function extractGeminiResponse(body) {
   const parts =
     body?.candidates?.[0]?.content?.parts;
 
   if (!Array.isArray(parts)) {
-    return "";
+    return null;
   }
 
-  return parts
-    .map(part =>
-      String(
-        part?.text || ""
+  const raw =
+    parts
+      .map(part =>
+        String(part?.text || "")
       )
-    )
-    .filter(Boolean)
-    .join("\n")
-    .trim();
+      .filter(Boolean)
+      .join("\n")
+      .trim();
+
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed =
+      JSON.parse(raw);
+
+    const messages =
+      Array.isArray(parsed?.messages)
+        ? parsed.messages
+            .map(item => String(item || "").trim())
+            .filter(Boolean)
+            .slice(0, 3)
+        : [];
+
+    if (!messages.length) {
+      return null;
+    }
+
+    const state =
+      parsed?.state &&
+      typeof parsed.state === "object"
+        ? {
+            topic:
+              String(parsed.state.topic || "")
+                .slice(0, 200),
+            context:
+              String(parsed.state.context || "")
+                .slice(0, 500),
+            participants:
+              Array.isArray(parsed.state.participants)
+                ? parsed.state.participants
+                    .slice(0, 12)
+                    .map(item => ({
+                      userId:
+                        String(item?.userId || "unknown"),
+                      username:
+                        String(item?.username || "Unknown")
+                          .slice(0, 100)
+                    }))
+                : []
+          }
+        : null;
+
+    return {
+      messages,
+      state
+    };
+  } catch {
+    /*
+     * Safe fallback for an unexpected model response. The visible response
+     * still works, but no new persistent state is written.
+     */
+    return {
+      messages: splitForDiscord(raw).slice(0, 3),
+      state: null
+    };
+  }
 }
 
 async function callModel(
@@ -560,7 +667,8 @@ async function callModel(
   history,
   liveMessages,
   directlyAddressed,
-  batchMessages
+  batchMessages,
+  conversationState
 ) {
   const url =
     GEMINI_URL +
@@ -609,7 +717,8 @@ async function callModel(
                     formatHistory(
                       history,
                       liveMessages,
-                      batchMessages
+                      batchMessages,
+                      conversationState
                     )
                 }
               ]
@@ -650,7 +759,7 @@ async function callModel(
     );
   }
 
-  return extractGeminiText(body);
+  return extractGeminiResponse(body);
 }
 
 async function sendNaturalReply(
@@ -903,6 +1012,12 @@ async function processBatch(
       message.channelId
     );
 
+  const conversationState =
+    await aiMemory.getConversationState(
+      message.guild.id,
+      message.channelId
+    );
+
   /*
    * Fetch the actual Discord conversation after the debounce.
    *
@@ -965,15 +1080,31 @@ async function processBatch(
 
         replyTarget:
           item.replyTarget
-      }))
+      })),
+      conversationState
     );
 
-  if (!output) {
+  if (
+    !output ||
+    !Array.isArray(output.messages) ||
+    !output.messages.length
+  ) {
     console.error(
       "❌ BLACK DRAGONS AI returned an empty response."
     );
     return;
   }
+
+  if (output.state) {
+    void aiMemory.updateConversationState(
+      message.guild.id,
+      message.channelId,
+      output.state
+    );
+  }
+
+  const responseText =
+    output.messages.join("\n[NEXT_MESSAGE]\n");
 
   /*
    * Reply to the LAST message in the burst. This makes the AI response
@@ -982,7 +1113,7 @@ async function processBatch(
   const sentMessages =
     await sendNaturalReply(
       batch[batch.length - 1].message,
-      output
+      responseText
     );
 
   /*
