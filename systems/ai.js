@@ -550,8 +550,13 @@ function buildInstructions(
     "- Do not invent personal facts.\n" +
     "- Do not pretend you saw messages that are not supplied.\n\n" +
 
-    "MEMBER MEMORY:\n" +
+    "MEMBER MEMORY AND RELATIONSHIP CONTINUITY:\n" +
     "- Private member memory is shown only for the USER_ID who triggered this turn. Never apply it to another member.\n" +
+    "- Use saved facts naturally and only when they are relevant; do not repeatedly bring them up just to prove you remember.\n" +
+    "- Treat saved facts as information the member explicitly chose to share, not as permission to make assumptions about them.\n" +
+    "- Build conversational familiarity through the current conversation and explicitly saved preferences, not hidden personality profiles or relationship scores.\n" +
+    "- Never infer or store a member's emotional state, mental health, personality type, vulnerabilities, or level of closeness to the bot.\n" +
+    "- Match the member's current tone without assuming they always want the same style. Respect a serious message even if earlier chats were playful.\n" +
     "- Only save a fact when that same user clearly and explicitly asks you to remember or save it. Do not silently build profiles from ordinary chat.\n" +
     "- Save only non-sensitive facts the user explicitly asks you to remember, such as hobbies, interests, preferences, or ongoing projects.\n" +
     "- Never save passwords, tokens, contact details, financial details, or sensitive personal information (including health, religion, politics, or sexuality). If asked to remember one of these, politely say you cannot store it.\n" +
@@ -767,7 +772,8 @@ async function callModel(
                   buildInstructions(
                     message,
                     directlyAddressed,
-                    batchMessages
+                    batchMessages,
+                    conversationState
                   )
               }
             ]
