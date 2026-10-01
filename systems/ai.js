@@ -686,6 +686,152 @@ async function sendNaturalReply(
   }
 }
 
+async function shouldJoinConversation(
+  message,
+  client,
+  replyTarget
+) {
+  if (!replyTarget || replyTarget.type !== "other") {
+    return true;
+  }
+
+  try {
+    const recent =
+      await message.channel.messages.fetch({
+        limit: 12
+      });
+
+    const ordered =
+      Array.from(recent.values())
+        .sort(
+          (a, b) =>
+            a.createdTimestamp -
+            b.createdTimestamp
+        );
+
+    const botId =
+      client.user?.id;
+
+    if (!botId) {
+      return false;
+    }
+
+    /*
+     * A reply chain that eventually points back to BLACK DRAGONS is still
+     * part of the bot's conversation, even when the immediate reply target
+     * is another human.
+     */
+    let current =
+      replyTarget.message || null;
+
+    const visited =
+      new Set();
+
+    for (
+      let depth = 0;
+      current &&
+      depth < 4;
+      depth += 1
+    ) {
+      if (
+        String(current.author?.id) ===
+        String(botId)
+      ) {
+        return true;
+      }
+
+      const nextId =
+        current.reference?.messageId;
+
+      if (
+        !nextId ||
+        visited.has(String(nextId))
+      ) {
+        break;
+      }
+
+      visited.add(String(nextId));
+
+      current =
+        ordered.find(
+          item =>
+            String(item.id) ===
+            String(nextId)
+        ) || null;
+    }
+
+    /*
+     * If BLACK DRAGONS has just been participating in the same room, a
+     * human-to-human message can sometimes naturally continue that exchange.
+     * Keep this window short so Auto Chat does not become "reply to everyone".
+     */
+    const recentBotMessages =
+      ordered.filter(
+        item =>
+          String(item.author?.id) ===
+          String(botId)
+      );
+
+    const latestBot =
+      recentBotMessages[
+        recentBotMessages.length - 1
+      ];
+
+    if (latestBot) {
+      const messagesSinceBot =
+        ordered.filter(
+          item =>
+            item.createdTimestamp >
+            latestBot.createdTimestamp
+        );
+
+      if (
+        messagesSinceBot.length <= 3
+      ) {
+        return true;
+      }
+    }
+
+    /*
+     * Questions that explicitly address BLACK DRAGONS by name are handled
+     * by wasDirectlyAddressed(). This fallback catches natural references
+     * such as "the bot", "black dragons", or "bd" without making every
+     * ordinary message a bot turn.
+     */
+    const normalized =
+      String(
+        message.content || ""
+      )
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ");
+
+    const botName =
+      String(
+        client.user?.username || ""
+      )
+        .toLowerCase();
+
+    const botMentionedByName =
+      (
+        botName &&
+        normalized.includes(botName)
+      ) ||
+      normalized.includes("black dragons") ||
+      /\bthe bot\b/.test(normalized);
+
+    return Boolean(
+      botMentionedByName
+    );
+  } catch (error) {
+    console.warn(
+      "⚠️ BLACK DRAGONS could not determine conversational participation:",
+      error?.message || error
+    );
+
+    return false;
+  }
+}
+
 async function processBatch(
   message,
   client,
@@ -965,22 +1111,19 @@ async function handleMessage(
   }
 
   /*
-   * IMPORTANT:
-   * A reply to another user is NEVER an AI turn.
-   * A reply to BLACK DRAGONS IS an AI turn.
-   * A normal message is an AI turn only when Auto Chat is enabled.
+   * Conversation participation:
+   *
+   * - Direct mentions/replies to BLACK DRAGONS always qualify.
+   * - Auto Chat can allow natural participation in a human conversation,
+   *   but only when the recent room context connects that conversation to
+   *   BLACK DRAGONS.
+   * - A completely unrelated human-to-human reply is ignored.
    */
   const replyTarget =
     await getReplyTarget(
       message,
       client
     );
-
-  if (
-    replyTarget.type === "other"
-  ) {
-    return;
-  }
 
   const directlyAddressed =
     wasDirectlyAddressed(
@@ -994,6 +1137,22 @@ async function handleMessage(
     !directlyAddressed
   ) {
     return;
+  }
+
+  if (
+    replyTarget.type === "other" &&
+    !directlyAddressed
+  ) {
+    const shouldJoin =
+      await shouldJoinConversation(
+        message,
+        client,
+        replyTarget
+      );
+
+    if (!shouldJoin) {
+      return;
+    }
   }
 
   queueUserMessage(
