@@ -360,7 +360,7 @@ function moderationDurationModal(caseId,type,currentMinutes=null){
         new TextInputBuilder()
           .setCustomId("duration_minutes")
           .setLabel("Duration in minutes")
-          .setPlaceholder("Example: 5760 = 4 days")
+          .setPlaceholder("Example: 3760 = 4 days")
           .setStyle(TextInputStyle.Short)
           .setMinLength(1)
           .setMaxLength(5)
@@ -1098,7 +1098,7 @@ function panel(t,s,g){
   return new EmbedBuilder()
     .setColor(0x5865F2)
     .setTitle("⚔️ TRYOUT RESULT • RECORD MATCH")
-    .setDescription("Tryout: **"+t.id+"**\n\nSelect the two players who fought. Then enter the kill score.\n\n**First to 5 kills wins the match.**")
+    .setDescription("Tryout: **"+t.id+"**\n\nSelect the two players who fought. Then enter the kill score.\n\n**Enter the actual score from the match. Any kill count is valid.**")
     .addFields(
       {name:"🏆 Winner",value:w?"<@"+w.id+">":"**Not selected**",inline:true},
       {name:"⚔️ Opponent",value:l?"<@"+l.id+">":"**Not selected**",inline:true},
@@ -1234,7 +1234,7 @@ async function startTryout(i,c,link){
         new EmbedBuilder()
           .setColor(0x8B0000)
           .setTitle("⚔️ "+t.id+" • MATCH LOG")
-          .setDescription("This thread contains the live official results for this tryout.\n\n**First to 5 kills wins.** Every recorded match is stored here permanently.")
+          .setDescription("This thread contains the live official results for this tryout.\n\n**Any kill count is valid.** Every recorded match is stored here permanently.")
           .setFooter({text:"BLACK DRAGONS • Official Tryout History"})
           .setTimestamp(now)
       ]
@@ -1493,13 +1493,8 @@ async function handleModal(i,c){
       return true;
     }
 
-    if(winnerKills!==5){
-      await i.editReply({content:"❌ The winning score must be **5** because the first player to reach 5 kills wins."});
-      return true;
-    }
-
-    if(loserKills>=5){
-      await i.editReply({content:"❌ The opponent's score must be **0–4** when the winner reaches 5."});
+    if(winnerKills<=loserKills){
+      await i.editReply({content:"❌ The winner's kill count must be higher than the opponent's score."});
       return true;
     }
 
