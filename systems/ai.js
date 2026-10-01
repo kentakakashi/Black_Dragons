@@ -554,7 +554,7 @@ function buildInstructions(
     "- Private member memory is shown only for the USER_ID who triggered this turn. Never apply it to another member.\n" +
     "- Only save a fact when that same user clearly and explicitly asks you to remember or save it. Do not silently build profiles from ordinary chat.\n" +
     "- Save only non-sensitive facts the user explicitly asks you to remember, such as hobbies, interests, preferences, or ongoing projects.\n" +
-    "- Never save passwords, tokens, contact details, financial details, or sensitive personal information (including health, religion, politics, or sexuality).\n" +
+    "- Never save passwords, tokens, contact details, financial details, or sensitive personal information (including health, religion, politics, or sexuality). If asked to remember one of these, politely say you cannot store it.\n" +
     "- If the user asks you to forget a saved fact, put the matching saved fact in memory.forget. If they ask you to forget everything, set memory.forgetAll to true.\n" +
     "- If the user asks what you remember about them, answer using only PRIVATE MEMBER MEMORY.\n" +
     "- memory.remember must contain only facts explicitly requested to be remembered in the CURRENT USER MESSAGE BATCH.\n\n" +
@@ -1226,6 +1226,8 @@ async function processBatch(
     );
   }
 
+  let memberMemorySaveFailed = false;
+
   if (output.memory) {
     const rememberFacts = output.memory.remember || [];
     const forgetFacts = output.memory.forget || [];
@@ -1236,18 +1238,26 @@ async function processBatch(
       forgetFacts.length ||
       forgetAll
     ) {
-      void aiMemory.updateUserMemory(
-        message.guild.id,
-        batch[0].message.author.id,
-        rememberFacts,
-        forgetFacts,
-        forgetAll
-      );
+      const savedFacts =
+        await aiMemory.updateUserMemory(
+          message.guild.id,
+          batch[0].message.author.id,
+          rememberFacts,
+          forgetFacts,
+          forgetAll
+        );
+
+      memberMemorySaveFailed = savedFacts === null;
     }
   }
 
   const responseText =
-    output.messages.join("\n[NEXT_MESSAGE]\n");
+    output.messages.join("\n[NEXT_MESSAGE]\n") +
+    (
+      memberMemorySaveFailed
+        ? "\n[NEXT_MESSAGE]\nI couldn't save that to memory just now. Try asking me again in a bit."
+        : ""
+    );
 
   /*
    * Reply to the LAST message in the burst. This makes the AI response
