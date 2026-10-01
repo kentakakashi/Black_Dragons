@@ -575,6 +575,12 @@ function buildInstructions(
     "- If multiple earlier things could match a vague reference, use the strongest contextual match; only ask for clarification when the ambiguity materially changes the answer.\n" +
     "- When making a callback to an older point, do not invent details that are not present in live context or persistent state.\n\n" +
 
+    "SAVED THREAD SNAPSHOT:\n" +
+    "TOPIC: " + String(conversationState?.topic || "none") + "\n" +
+    "CONTEXT: " + String(conversationState?.context || "none") + "\n" +
+    "PREVIOUS SOCIAL MODE: " + String(conversationState?.socialMode || "casual") + "\n" +
+    "CALLBACK: " + String(conversationState?.callback || "none") + "\n\n" +
+
     "CONVERSATION:\n" +
     "- This request is already an approved AI turn. Always answer it.\n" +
     "- Never output SKIP.\n" +
