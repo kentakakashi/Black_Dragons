@@ -1182,41 +1182,69 @@ async function processBatch(
     );
   }
 
-  const output =
-    await callModel(
-      message,
-      history,
-      liveMessages,
-      directlyAddressed,
-      batch.map(item => ({
-        userId:
-          item.message.author.id,
+  const aiRequestStartedAt = Date.now();
+  let output;
 
-        username:
-          item.message.member
-            ?.displayName ||
-          item.message.author.username,
+  try {
+    output =
+      await callModel(
+        message,
+        history,
+        liveMessages,
+        directlyAddressed,
+        batch.map(item => ({
+          userId:
+            item.message.author.id,
 
-        content:
-          item.message.content,
+          username:
+            item.message.member
+              ?.displayName ||
+            item.message.author.username,
 
-        replyTarget:
-          item.replyTarget
-      })),
-      conversationState,
-      userMemory
+          content:
+            item.message.content,
+
+          replyTarget:
+            item.replyTarget
+        })),
+        conversationState,
+        userMemory
+      );
+  } catch (error) {
+    await aiMemory.recordAIRequest(
+      message.guild.id,
+      Date.now() - aiRequestStartedAt,
+      false,
+      0
     );
+    throw error;
+  }
 
   if (
     !output ||
     !Array.isArray(output.messages) ||
     !output.messages.length
   ) {
+    await aiMemory.recordAIRequest(
+      message.guild.id,
+      Date.now() - aiRequestStartedAt,
+      false,
+      0
+    );
+
     console.error(
       "❌ BLACK DRAGONS AI returned an empty response."
     );
     return;
   }
+
+  // Record only aggregate request metrics, never message contents or IDs.
+  await aiMemory.recordAIRequest(
+    message.guild.id,
+    Date.now() - aiRequestStartedAt,
+    true,
+    output.messages.length
+  );
 
   if (output.state) {
     void aiMemory.updateConversationState(
