@@ -53,6 +53,8 @@ async function loadChannel(guildId, channelId) {
         String(savedState.topic || "").slice(0, 200),
       context:
         String(savedState.context || "").slice(0, 500),
+      socialMode:
+        String(savedState.socialMode || "casual").slice(0, 40),
       participants:
         Array.isArray(savedState.participants)
           ? savedState.participants
@@ -86,6 +88,9 @@ function queueWrite(guildId, channelId, state) {
       context:
         String(state.conversationState?.context || "")
           .slice(0, 500),
+      socialMode:
+        String(state.conversationState?.socialMode || "casual")
+          .slice(0, 40),
       participants:
         Array.isArray(state.conversationState?.participants)
           ? state.conversationState.participants
@@ -183,6 +188,10 @@ async function getConversationState(
       String(
         state.conversationState?.context || ""
       ),
+    socialMode:
+      String(
+        state.conversationState?.socialMode || "casual"
+      ),
     participants:
       Array.isArray(
         state.conversationState?.participants
@@ -214,6 +223,9 @@ async function updateConversationState(
     context:
       String(nextState?.context || "")
         .slice(0, 500),
+    socialMode:
+      String(nextState?.socialMode || "casual")
+        .slice(0, 40),
     participants:
       Array.isArray(nextState?.participants)
         ? nextState.participants
