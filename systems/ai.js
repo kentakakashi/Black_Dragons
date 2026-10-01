@@ -734,7 +734,10 @@ async function callModel(
             thinkingConfig: {
               thinkingLevel:
                 "minimal"
-            }
+            },
+
+            responseMimeType:
+              "application/json"
           }
         })
       }
