@@ -546,7 +546,7 @@ function buildInstructions(
     "- Resolve natural references such as 'that', 'this', 'the other one', 'earlier', 'before', 'what you said', and 'remember' using the recent live conversation before asking for clarification.\n" +
     "- If a user clearly refers back to something recently discussed, answer using that earlier context instead of pretending the reference is meaningless.\n" +
     "- If multiple earlier things could match a vague reference, use the strongest contextual match; only ask for clarification when the ambiguity materially changes the answer.\n" +
-    "- When making a callback to an older point, do not invent details that are not present in live context or persistent state.\n\n"
+    "- When making a callback to an older point, do not invent details that are not present in live context or persistent state.\n\n" +
 
     "CONVERSATION:\n" +
     "- This request is already an approved AI turn. Always answer it.\n" +
