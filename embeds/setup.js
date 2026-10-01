@@ -51,7 +51,47 @@ const CATEGORIES = {
     { key: "ai_auto_chat", label: "AI Auto Chat", type: "toggle" },
     { key: "ai_knowledge", label: "Server Knowledge", type: "toggle" },
     { key: "ai_web_search", label: "Live Web Search", type: "toggle" },
-    { key: "ai_gif_reactions", label: "GIF Reactions", type: "toggle" }
+    { key: "ai_gif_reactions", label: "GIF Reactions", type: "toggle" },
+    {
+      key: "ai_tone",
+      label: "Response Tone",
+      type: "choice",
+      options: [
+        { label: "Casual", description: "Natural Discord-first wording.", value: "casual" },
+        { label: "Balanced", description: "Casual with a little more polish.", value: "balanced" },
+        { label: "Formal", description: "More structured and restrained.", value: "formal" }
+      ]
+    },
+    {
+      key: "ai_humor",
+      label: "Humor Level",
+      type: "choice",
+      options: [
+        { label: "Low", description: "Mostly direct with occasional jokes.", value: "low" },
+        { label: "Medium", description: "Normal playful balance.", value: "medium" },
+        { label: "High", description: "More teasing and playful reactions.", value: "high" }
+      ]
+    },
+    {
+      key: "ai_friendliness",
+      label: "Friendliness",
+      type: "choice",
+      options: [
+        { label: "Reserved", description: "Friendly but less familiar.", value: "reserved" },
+        { label: "Warm", description: "Open, friendly server presence.", value: "warm" },
+        { label: "Very Friendly", description: "Extra welcoming and expressive.", value: "very-friendly" }
+      ]
+    },
+    {
+      key: "ai_response_length",
+      label: "Response Length",
+      type: "choice",
+      options: [
+        { label: "Concise", description: "Prefer short replies.", value: "concise" },
+        { label: "Balanced", description: "Normal conversational length.", value: "balanced" },
+        { label: "Detailed", description: "Allow longer answers when useful.", value: "detailed" }
+      ]
+    }
   ]},
   leaderboards: { label: "Leaderboards", emoji: "🏆", description: "Ranking-title role mapping plus permanent live leaderboard channels.", settings: [
     { key: "leaderboard_role_shadow_monarch", label: "SHADOW MONARCH Role", type: "role" },
@@ -82,6 +122,7 @@ function currentValue(data, key) {
     blacklist_players:bl.playerChannelId, blacklist_clans:bl.clanChannelId,
     ai_enabled:ai.enabled !== false, ai_channel:ai.channelId, ai_auto_chat:ai.autoChat === true,
     ai_knowledge:ai.knowledge !== false, ai_web_search:ai.webSearch !== false, ai_gif_reactions:ai.gifReactions !== false,
+    ai_tone:ai.tone || "casual", ai_humor:ai.humor || "medium", ai_friendliness:ai.friendliness || "warm", ai_response_length:ai.responseLength || "balanced",
     leaderboard_ranking_titles:lb.rankingChannelId, leaderboard_top_kills:lb.topKillsChannelId,
     tryout_rules:t.rulesChannelId, tryout_channel:t.channelId, tryout_history:t.historyChannelId, tryout_staff_role:t.staffRoleId
   };
