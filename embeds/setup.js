@@ -133,6 +133,10 @@ function currentValue(data, key) {
 function valueText(data, s, guild) {
   const v=currentValue(data,s.key);
   if(s.type==="toggle") return v ? "🟢 Enabled" : "🔴 Disabled";
+  if(s.type==="choice"){
+    const option=s.options?.find(item=>item.value===v);
+    return option ? option.label : String(v || "Not configured");
+  }
   if(!v) return "Not configured";
 
   if(s.type==="role"){
