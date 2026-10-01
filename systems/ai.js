@@ -230,6 +230,7 @@ function formatHistory(
     (
       conversationState.topic ||
       conversationState.context ||
+      conversationState.callback ||
       conversationState.participants?.length
     )
   ) {
@@ -240,6 +241,8 @@ function formatHistory(
         String(conversationState.topic || "unknown"),
       "CONTEXT: " +
         String(conversationState.context || "unknown"),
+      "CALLBACK: " +
+        String(conversationState.callback || "none"),
       "PARTICIPANTS: " +
         (
           Array.isArray(conversationState.participants)
