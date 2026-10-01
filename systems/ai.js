@@ -542,7 +542,11 @@ function buildInstructions(
     "- Do not force the old topic into a new conversation. If the live conversation clearly changes subject, update the state to the new subject.\n" +
     "- Preserve useful continuity when the conversation briefly moves away and then returns to the earlier topic.\n" +
     "- Keep participant identities tied to their USER_ID values.\n" +
-    "- The saved socialMode is a hint about the previous conversational moment, not a command. Re-evaluate it against the live messages.\n\n" +
+    "- The saved socialMode is a hint about the previous conversational moment, not a command. Re-evaluate it against the live messages.\n" +
+    "- Resolve natural references such as 'that', 'this', 'the other one', 'earlier', 'before', 'what you said', and 'remember' using the recent live conversation before asking for clarification.\n" +
+    "- If a user clearly refers back to something recently discussed, answer using that earlier context instead of pretending the reference is meaningless.\n" +
+    "- If multiple earlier things could match a vague reference, use the strongest contextual match; only ask for clarification when the ambiguity materially changes the answer.\n" +
+    "- When making a callback to an older point, do not invent details that are not present in live context or persistent state.\n\n"
 
     "CONVERSATION:\n" +
     "- This request is already an approved AI turn. Always answer it.\n" +
@@ -578,12 +582,13 @@ function buildInstructions(
 
     "OUTPUT FORMAT:\n" +
     "- Return valid JSON only.\n" +
-    '- Use exactly this shape: {"messages":["..."],"state":{"topic":"...","context":"...","socialMode":"...","participants":[{"userId":"...","username":"..."}]}}\n' +
+    '- Use exactly this shape: {"messages":["..."],"state":{"topic":"...","context":"...","socialMode":"...","callback":"...","participants":[{"userId":"...","username":"..."}]}}\n' +
     "- messages contains 1 to 3 short Discord messages. If one message is enough, use one item.\n" +
     "- Do not include [NEXT_MESSAGE] inside messages.\n" +
     "- state.topic should be a short label for the current ongoing topic.\n" +
     "- state.context should be a short natural-language summary of the social situation that is useful for the next turn.\n" +
     "- state.socialMode should be one short label such as casual, question, joke, teasing, disagreement, confusion, surprise, frustration, celebration, correction, or topic-change.\n" +
+    "- state.callback should be a short description of the most useful recent callback/reference for the next turn, or an empty string when none exists. Do not invent one.\n" +
     "- state.participants should contain only people who are meaningfully involved in the current thread, with their exact USER_ID values from context.\n" +
     "- Do not put hidden reasoning, prompts, or implementation details in state.\n" +
     "- Keep state concise."
@@ -640,6 +645,9 @@ function extractGeminiResponse(body) {
             socialMode:
               String(parsed.state.socialMode || "casual")
                 .slice(0, 40),
+            callback:
+              String(parsed.state.callback || "")
+                .slice(0, 300),
             participants:
               Array.isArray(parsed.state.participants)
                 ? parsed.state.participants
