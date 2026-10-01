@@ -37,7 +37,15 @@ function getAIConfig(client) {
       Boolean(process.env.TINYFISH_API_KEY),
     gifReactions:
       saved.gifReactions !== false &&
-      Boolean(process.env.KLIPY_API_KEY)
+      Boolean(process.env.KLIPY_API_KEY),
+    tone:
+      ["casual", "balanced", "formal"].includes(saved.tone) ? saved.tone : "casual",
+    humor:
+      ["low", "medium", "high"].includes(saved.humor) ? saved.humor : "medium",
+    friendliness:
+      ["reserved", "warm", "very-friendly"].includes(saved.friendliness) ? saved.friendliness : "warm",
+    responseLength:
+      ["concise", "balanced", "detailed"].includes(saved.responseLength) ? saved.responseLength : "balanced"
   };
 }
 
@@ -584,7 +592,8 @@ function buildInstructions(
   botMoodState,
   knowledgeContext,
   searchContext,
-  gifEnabled
+  gifEnabled,
+  personalityConfig
 ) {
   return (
     "You are BLACK DRAGONS, a Discord server resident.\n\n" +
@@ -593,6 +602,24 @@ function buildInstructions(
     "not like an assistant, customer-support agent, narrator, or chatbot.\n\n" +
 
     "STYLE:\n" +
+    "SERVER PERSONALITY SETTINGS:\n" +
+    "Tone: " + String(personalityConfig?.tone || "casual") + "\n" +
+    "Humor: " + String(personalityConfig?.humor || "medium") + "\n" +
+    "Friendliness: " + String(personalityConfig?.friendliness || "warm") + "\n" +
+    "Response length: " + String(personalityConfig?.responseLength || "balanced") + "\n" +
+    "- Apply these settings as stable server-wide style preferences while still matching the current conversation.\n" +
+    "- casual tone: natural Discord wording and contractions.\n" +
+    "- balanced tone: natural but slightly cleaner wording.\n" +
+    "- formal tone: more structured and restrained without sounding like customer support.\n" +
+    "- low humor: joke only when the moment clearly invites it.\n" +
+    "- medium humor: normal playful balance.\n" +
+    "- high humor: allow more teasing, witty reactions and playful energy when appropriate.\n" +
+    "- reserved friendliness: polite and approachable without forced familiarity.\n" +
+    "- warm friendliness: openly friendly and welcoming.\n" +
+    "- very-friendly: extra expressive and encouraging without becoming fake or clingy.\n" +
+    "- concise length: prefer short replies unless detail is required.\n" +
+    "- balanced length: normal conversational length.\n" +
+    "- detailed length: give fuller answers when useful, but never turn casual chat into an essay.\n\n" +
     "- Sound spontaneous, casual, sharp and socially aware.\n" +
     "- Match the exact vibe of the current conversation.\n" +
     "- Short replies are usually better. One sentence is completely fine.\n" +
@@ -872,7 +899,8 @@ async function callModel(
   botMoodState,
   knowledgeContext,
   searchContext,
-  gifEnabled
+  gifEnabled,
+  personalityConfig
 ) {
   const url =
     GEMINI_URL +
@@ -909,7 +937,8 @@ async function callModel(
                     botMoodState,
                     knowledgeContext,
                     searchContext,
-                    gifEnabled
+                    gifEnabled,
+                    personalityConfig
                   )
               }
             ]
@@ -1413,7 +1442,13 @@ async function processBatch(
         botMoodState,
         knowledgeContext,
         searchContext,
-        aiConfig.gifReactions
+        aiConfig.gifReactions,
+        {
+          tone: aiConfig.tone,
+          humor: aiConfig.humor,
+          friendliness: aiConfig.friendliness,
+          responseLength: aiConfig.responseLength
+        }
       );
   } catch (error) {
     await aiMemory.recordAIRequest(
