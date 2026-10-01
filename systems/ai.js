@@ -1124,11 +1124,21 @@ async function processBatch(
     );
 
   // Memory is scoped to this guild and the one user who sent this batch.
-  const userMemory =
-    await aiMemory.getUserMemory(
-      message.guild.id,
-      batch[0].message.author.id
+  let userMemory = [];
+
+  try {
+    userMemory =
+      await aiMemory.getUserMemory(
+        message.guild.id,
+        batch[0].message.author.id
+      );
+  } catch (error) {
+    // A member-memory outage must never prevent the AI from replying.
+    console.warn(
+      "⚠️ BLACK DRAGONS could not load private member memory:",
+      error?.message || error
     );
+  }
 
   /*
    * Fetch the actual Discord conversation after the debounce.
