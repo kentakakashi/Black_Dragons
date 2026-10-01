@@ -59,7 +59,11 @@ const defaultData = {
       autoChat: false,
       knowledge: true,
       webSearch: true,
-      gifReactions: true
+      gifReactions: true,
+      tone: "casual",
+      humor: "medium",
+      friendliness: "warm",
+      responseLength: "balanced"
     },
 
     tryouts: {
@@ -311,7 +315,19 @@ function normalizeData(saved = {}) {
     autoChat: saved.config?.ai?.autoChat === true,
     knowledge: saved.config?.ai?.knowledge !== false,
     webSearch: saved.config?.ai?.webSearch !== false,
-    gifReactions: saved.config?.ai?.gifReactions !== false
+    gifReactions: saved.config?.ai?.gifReactions !== false,
+    tone: ["casual", "balanced", "formal"].includes(saved.config?.ai?.tone)
+      ? saved.config.ai.tone
+      : "casual",
+    humor: ["low", "medium", "high"].includes(saved.config?.ai?.humor)
+      ? saved.config.ai.humor
+      : "medium",
+    friendliness: ["reserved", "warm", "very-friendly"].includes(saved.config?.ai?.friendliness)
+      ? saved.config.ai.friendliness
+      : "warm",
+    responseLength: ["concise", "balanced", "detailed"].includes(saved.config?.ai?.responseLength)
+      ? saved.config.ai.responseLength
+      : "balanced"
   };
 
   data.config.tryouts = {
