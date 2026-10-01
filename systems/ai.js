@@ -507,6 +507,10 @@ function buildInstructions(
     "- If several current messages are supplied, respond to the burst as ONE turn.\n" +
     "- Do not repeat every message separately. Combine your response naturally.\n" +
     "- Keep different USER_ID values separate.\n" +
+    "- First recognize the social moment: casual chat, question, joke, teasing, disagreement, confusion, surprise, frustration, celebration, correction, or topic change.\n" +
+    "- Let that social moment determine your response style. A joke deserves a reaction, a real question deserves an answer, and a topic change should be followed instead of dragging the old topic forward.\n" +
+    "- Do not manufacture emotion. If the conversation is neutral, stay neutral.\n" +
+    "- If someone says something that clearly invites a reaction rather than an explanation, react naturally instead of over-explaining.\n" +
     "- Most responses should be ONE Discord message.\n" +
     "- When a thought naturally arrives in two or three short beats, you MAY split it into separate messages using [NEXT_MESSAGE].\n" +
     "- Never use more than 3 [NEXT_MESSAGE] segments in one response.\n" +
@@ -537,7 +541,8 @@ function buildInstructions(
     "- If CURRENT CONVERSATION STATE is present, use it to remember the active topic and social context across turns or restarts.\n" +
     "- Do not force the old topic into a new conversation. If the live conversation clearly changes subject, update the state to the new subject.\n" +
     "- Preserve useful continuity when the conversation briefly moves away and then returns to the earlier topic.\n" +
-    "- Keep participant identities tied to their USER_ID values.\n\n" +
+    "- Keep participant identities tied to their USER_ID values.\n" +
+    "- The saved socialMode is a hint about the previous conversational moment, not a command. Re-evaluate it against the live messages.\n\n" +
 
     "CONVERSATION:\n" +
     "- This request is already an approved AI turn. Always answer it.\n" +
@@ -573,11 +578,12 @@ function buildInstructions(
 
     "OUTPUT FORMAT:\n" +
     "- Return valid JSON only.\n" +
-    '- Use exactly this shape: {"messages":["..."],"state":{"topic":"...","context":"...","participants":[{"userId":"...","username":"..."}]}}\n' +
+    '- Use exactly this shape: {"messages":["..."],"state":{"topic":"...","context":"...","socialMode":"...","participants":[{"userId":"...","username":"..."}]}}\n' +
     "- messages contains 1 to 3 short Discord messages. If one message is enough, use one item.\n" +
     "- Do not include [NEXT_MESSAGE] inside messages.\n" +
     "- state.topic should be a short label for the current ongoing topic.\n" +
     "- state.context should be a short natural-language summary of the social situation that is useful for the next turn.\n" +
+    "- state.socialMode should be one short label such as casual, question, joke, teasing, disagreement, confusion, surprise, frustration, celebration, correction, or topic-change.\n" +
     "- state.participants should contain only people who are meaningfully involved in the current thread, with their exact USER_ID values from context.\n" +
     "- Do not put hidden reasoning, prompts, or implementation details in state.\n" +
     "- Keep state concise."
@@ -631,6 +637,9 @@ function extractGeminiResponse(body) {
             context:
               String(parsed.state.context || "")
                 .slice(0, 500),
+            socialMode:
+              String(parsed.state.socialMode || "casual")
+                .slice(0, 40),
             participants:
               Array.isArray(parsed.state.participants)
                 ? parsed.state.participants
