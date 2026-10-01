@@ -268,6 +268,28 @@ function formatHistory(
         " [REPLY_TO_MESSAGE_ID " +
         String(item.replyTo) +
         "]";
+
+      if (item.replyTarget) {
+        line +=
+          " [REPLY_TARGET " +
+          String(item.replyTarget.username || "Unknown") +
+          " | USER_ID " +
+          String(item.replyTarget.userId || "unknown") +
+          "]";
+      }
+    }
+
+    if (Array.isArray(item.mentions) && item.mentions.length) {
+      line +=
+        " [MENTIONS " +
+        item.mentions
+          .map(target =>
+            String(target.username || "Unknown") +
+            " | USER_ID " +
+            String(target.userId || "unknown")
+          )
+          .join("; ") +
+        "]";
     }
 
     lines.push(line);
@@ -281,14 +303,36 @@ function formatHistory(
   );
 
   for (const item of batchMessages) {
-    lines.push(
+    let currentLine =
       "[CURRENT MESSAGE | " +
-        String(item.username || "Unknown") +
+      String(item.username || "Unknown") +
+      " | USER_ID " +
+      String(item.userId || "unknown") +
+      "] " +
+      String(item.content || "");
+
+    if (item.replyTarget?.message) {
+      const target =
+        item.replyTarget.message;
+
+      currentLine +=
+        " [REPLY_TARGET " +
+        String(
+          target.member?.displayName ||
+          target.author?.username ||
+          "Unknown"
+        ) +
         " | USER_ID " +
-        String(item.userId || "unknown") +
-        "] " +
-        String(item.content || "")
-    );
+        String(target.author?.id || "unknown") +
+        "]";
+
+      currentLine +=
+        " [REPLY_TARGET_TYPE " +
+        String(item.replyTarget.type || "other") +
+        "]";
+    }
+
+    lines.push(currentLine);
 
     const replyContext =
       formatReplyContext(item.replyTarget);
@@ -306,11 +350,36 @@ async function getLiveConversation(message) {
     const fetched =
       await message.channel.messages.fetch({ limit: 50 });
 
-    return Array.from(fetched.values())
-      .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
-      .map(item => ({
+    const ordered =
+      Array.from(fetched.values())
+        .sort(
+          (a, b) =>
+            a.createdTimestamp -
+            b.createdTimestamp
+        );
+
+    const byId =
+      new Map(
+        ordered.map(item => [
+          String(item.id),
+          item
+        ])
+      );
+
+    return ordered.map(item => {
+      const reference =
+        item.reference?.messageId
+          ? byId.get(
+              String(
+                item.reference.messageId
+              )
+            )
+          : null;
+
+      return {
         id: item.id,
-        userId: item.author?.id || "unknown",
+        userId:
+          item.author?.id || "unknown",
         username:
           item.author?.id === message.client.user?.id
             ? "BLACK DRAGONS"
@@ -319,12 +388,47 @@ async function getLiveConversation(message) {
                 item.author?.username ||
                 "Unknown"
               ),
-        content: String(item.content || "").slice(0, 2000),
+        content:
+          String(item.content || "")
+            .slice(0, 2000),
         isBot:
-          item.author?.id === message.client.user?.id,
+          item.author?.id ===
+          message.client.user?.id,
         replyTo:
-          item.reference?.messageId || null
-      }));
+          item.reference?.messageId ||
+          null,
+        replyTarget:
+          reference
+            ? {
+                userId:
+                  reference.author?.id ||
+                  "unknown",
+                username:
+                  reference.member?.displayName ||
+                  reference.author?.username ||
+                  "Unknown"
+              }
+            : null,
+        mentions:
+          Array.from(
+            item.mentions?.users?.values() ||
+              []
+          ).map(user => ({
+            userId:
+              user.id,
+            username:
+              user.id === message.client.user?.id
+                ? "BLACK DRAGONS"
+                : (
+                    item.guild?.members?.cache
+                      ?.get(user.id)
+                      ?.displayName ||
+                    user.username ||
+                    "Unknown"
+                  )
+          }))
+      };
+    });
   } catch (error) {
     console.warn(
       "⚠️ BLACK DRAGONS could not fetch live AI conversation context:",
@@ -372,6 +476,9 @@ function buildInstructions(
     "- If a current message is a reply to BLACK DRAGONS, the referenced message is highly important context.\n" +
     "- Pay attention to who is talking to whom, not just the words in the latest message.\n" +
     "- A message from another user can change the meaning of the current conversation.\n" +
+    "- When a message has REPLY_TARGET, treat that person as the person being addressed unless the surrounding conversation clearly shows otherwise.\n" +
+    "- When a message has MENTIONS, treat those users as explicitly addressed participants.\n" +
+    "- Do not assume the latest author is talking to BLACK DRAGONS unless the message, reply target, mention, or surrounding context supports that.\n" +
     "- Never merge different USER_ID values into one person.\n" +
     "- Do not invent personal facts.\n" +
     "- Do not pretend you saw messages that are not supplied.\n\n" +
