@@ -45,10 +45,13 @@ const CATEGORIES = {
     { key: "tryout_history", label: "Tryout History Channel", type: "channel" },
     { key: "tryout_staff_role", label: "Tryout Staff Role", type: "role" }
   ]},
-  ai: { label: "AI Chat", emoji: "🤖", description: "Choose the channel where BLACK DRAGONS AI lives and whether it may join conversations automatically.", settings: [
+  ai: { label: "AI Chat", emoji: "🤖", description: "Configure BLACK DRAGONS AI, its channel, knowledge, live search and GIF reactions.", settings: [
     { key: "ai_enabled", label: "AI Enabled", type: "toggle" },
     { key: "ai_channel", label: "AI Chat Channel", type: "channel" },
-    { key: "ai_auto_chat", label: "AI Auto Chat", type: "toggle" }
+    { key: "ai_auto_chat", label: "AI Auto Chat", type: "toggle" },
+    { key: "ai_knowledge", label: "Server Knowledge", type: "toggle" },
+    { key: "ai_web_search", label: "Live Web Search", type: "toggle" },
+    { key: "ai_gif_reactions", label: "GIF Reactions", type: "toggle" }
   ]},
   leaderboards: { label: "Leaderboards", emoji: "🏆", description: "Ranking-title role mapping plus permanent live leaderboard channels.", settings: [
     { key: "leaderboard_role_shadow_monarch", label: "SHADOW MONARCH Role", type: "role" },
@@ -78,6 +81,7 @@ function currentValue(data, key) {
     log_bot:logs.bot, log_general:logs.general,
     blacklist_players:bl.playerChannelId, blacklist_clans:bl.clanChannelId,
     ai_enabled:ai.enabled !== false, ai_channel:ai.channelId, ai_auto_chat:ai.autoChat === true,
+    ai_knowledge:ai.knowledge !== false, ai_web_search:ai.webSearch !== false, ai_gif_reactions:ai.gifReactions !== false,
     leaderboard_ranking_titles:lb.rankingChannelId, leaderboard_top_kills:lb.topKillsChannelId,
     tryout_rules:t.rulesChannelId, tryout_channel:t.channelId, tryout_history:t.historyChannelId, tryout_staff_role:t.staffRoleId
   };
@@ -119,7 +123,7 @@ function createHomeEmbed(data, notice, guild) {
     "💾 Press **SAVE ALL** once at the end to save everything together.\n\n"+
     "📋 **Logging configured:** "+configured+"/10\n"+
     "🚫 **Blacklist channels:** "+blacklistConfigured+"/2\n"+
-    "🤖 **AI:** "+(currentValue(data,"ai_enabled") ? "Enabled" : "Disabled")+" • **AI channel:** "+aiChannelConfigured+"/1 • **Auto chat:** "+(currentValue(data,"ai_auto_chat") ? "Enabled" : "Disabled")+"\n"+
+    "🤖 **AI:** "+(currentValue(data,"ai_enabled") ? "Enabled" : "Disabled")+" • **AI channel:** "+aiChannelConfigured+"/1 • **Auto chat:** "+(currentValue(data,"ai_auto_chat") ? "Enabled" : "Disabled")+" • **Knowledge:** "+(currentValue(data,"ai_knowledge") ? "On" : "Off")+" • **Web:** "+(currentValue(data,"ai_web_search") ? "On" : "Off")+" • **GIFs:** "+(currentValue(data,"ai_gif_reactions") ? "On" : "Off")+"\n"+
     "🏆 **Leaderboard channels:** "+leaderboardConfigured+"/2\n"+
     "⚔️ **Tryout setup:** "+tryoutConfigured+"/4"
   );
