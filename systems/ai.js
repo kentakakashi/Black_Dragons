@@ -137,32 +137,45 @@ function splitForDiscord(text) {
     return [];
   }
 
+  /*
+   * Gemini may intentionally mark a natural conversational break.
+   * This is optional: one-message answers remain one message.
+   */
+  const naturalParts =
+    clean
+      .split(/\s*\[NEXT_MESSAGE\]\s*/gi)
+      .map(part => part.trim())
+      .filter(Boolean);
+
   const chunks = [];
-  let remaining = clean;
 
-  while (remaining.length > 2000) {
-    let cut =
-      remaining.lastIndexOf("\n", 1990);
+  for (const part of naturalParts) {
+    let remaining = part;
 
-    if (cut < 900) {
-      cut =
-        remaining.lastIndexOf(" ", 1990);
+    while (remaining.length > 2000) {
+      let cut =
+        remaining.lastIndexOf("\n", 1990);
+
+      if (cut < 900) {
+        cut =
+          remaining.lastIndexOf(" ", 1990);
+      }
+
+      if (cut < 900) {
+        cut = 1990;
+      }
+
+      chunks.push(
+        remaining.slice(0, cut).trim()
+      );
+
+      remaining =
+        remaining.slice(cut).trim();
     }
 
-    if (cut < 900) {
-      cut = 1990;
+    if (remaining) {
+      chunks.push(remaining);
     }
-
-    chunks.push(
-      remaining.slice(0, cut).trim()
-    );
-
-    remaining =
-      remaining.slice(cut).trim();
-  }
-
-  if (remaining) {
-    chunks.push(remaining);
   }
 
   return chunks;
@@ -460,7 +473,11 @@ function buildInstructions(
     "- Actually respond to what the user said instead of inventing a new topic.\n" +
     "- If several current messages are supplied, respond to the burst as ONE turn.\n" +
     "- Do not repeat every message separately. Combine your response naturally.\n" +
-    "- Keep different USER_ID values separate.\n\n" +
+    "- Keep different USER_ID values separate.\n" +
+    "- Most responses should be ONE Discord message.\n" +
+    "- When a thought naturally arrives in two or three short beats, you MAY split it into separate messages using [NEXT_MESSAGE].\n" +
+    "- Never use more than 3 [NEXT_MESSAGE] segments in one response.\n" +
+    "- Do not split a normal sentence just to look human. The break should feel like a genuine conversational pause, reaction, correction, or follow-up.\n\n" +
 
     "EMOJIS:\n" +
     "- Do NOT add an emoji by default.\n" +
@@ -515,7 +532,7 @@ function buildInstructions(
     ) +
     "\n\n" +
 
-    "Output ONLY the message BLACK DRAGONS should send. No labels."
+    "Output ONLY what BLACK DRAGONS should send. No labels. If using multiple messages, separate them only with the exact marker [NEXT_MESSAGE]."
   );
 }
 
@@ -684,6 +701,8 @@ async function sendNaturalReply(
       });
     }
   }
+
+  return chunks;
 }
 
 async function shouldJoinConversation(
@@ -960,16 +979,24 @@ async function processBatch(
    * Reply to the LAST message in the burst. This makes the AI response
    * visually attach to the complete burst instead of one earlier fragment.
    */
-  await sendNaturalReply(
-    batch[batch.length - 1].message,
-    output
-  );
+  const sentMessages =
+    await sendNaturalReply(
+      batch[batch.length - 1].message,
+      output
+    );
 
-  void aiMemory.appendBotMessage(
-    message.guild.id,
-    message.channelId,
-    output
-  );
+  /*
+   * Store the actual individual bot messages in memory rather than one
+   * artificial blob. This keeps later context aligned with what users
+   * actually saw in Discord.
+   */
+  for (const sentContent of sentMessages) {
+    void aiMemory.appendBotMessage(
+      message.guild.id,
+      message.channelId,
+      sentContent
+    );
+  }
 }
 
 function queueUserMessage(
