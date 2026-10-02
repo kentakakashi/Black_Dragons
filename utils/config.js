@@ -171,6 +171,13 @@ function buildCommands() {
       ),
 
     new SlashCommandBuilder()
+      .setName('wack-brain')
+      .setDescription("Clear BLACK DRAGONS' current channel conversation context without deleting member memories.")
+      .setDefaultMemberPermissions(
+        PermissionFlagsBits.Administrator.toString()
+      ),
+
+    new SlashCommandBuilder()
       .setName('blacklist')
       .setDescription('Manage the Black Dragons player and clan blacklist.')
       .setDefaultMemberPermissions(
