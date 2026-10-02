@@ -816,8 +816,8 @@ function extractGeminiResponse(body) {
 
   // Gemini may wrap its structured response in a markdown fence or preamble.
   const unfenced = raw
-    .replace(/^\\s*`{3}(?:json)?\\s*/i, "")
-    .replace(/\\s*`{3}\\s*$/, "")
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/, "")
     .trim();
   const firstBrace = unfenced.indexOf("{");
   const lastBrace = unfenced.lastIndexOf("}");
@@ -831,7 +831,7 @@ function extractGeminiResponse(body) {
     parsed = JSON.parse(candidate);
   } catch (error) {
     // Never expose malformed internal JSON as a Discord message.
-    if (/["']?messages["']?\\s*:|["']?memory["']?\\s*:|["']?socialMode["']?\\s*:/i.test(raw)) {
+    if (raw.includes('"messages"') || raw.includes('"memory"') || raw.includes('"socialMode"')) {
       console.warn("⚠️ BLACK DRAGONS discarded malformed Gemini JSON instead of exposing internal data.");
       return null;
     }
