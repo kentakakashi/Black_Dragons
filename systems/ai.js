@@ -23,6 +23,30 @@ const BATCH_WAIT_MS = 2000;
  * the same time never get merged into one AI request.
  */
 const pendingBatches = new Map();
+const conversationGenerations = new Map();
+
+function conversationKey(guildId, channelId) {
+  return String(guildId) + ":" + String(channelId);
+}
+
+function getAIUserLabel(user, member) {
+  const username = String(user?.username || "").toLowerCase();
+  if (username === "kenta.kakashi") return "Kenta Kakashi";
+  if (username === "kiro_goat") return "Poi";
+  return String(
+    member?.displayName ||
+    user?.globalName ||
+    user?.username ||
+    "Unknown"
+  );
+}
+
+async function resetConversation(guildId, channelId) {
+  const key = conversationKey(guildId, channelId);
+  conversationGenerations.set(key, (conversationGenerations.get(key) || 0) + 1);
+  clearPendingForGuildChannel(guildId, channelId);
+  return aiMemory.resetChannelConversation(guildId, channelId);
+}
 
 function getAIConfig(client) {
   const saved = client?.appData?.config?.ai || {};
@@ -497,11 +521,8 @@ async function getLiveConversation(message) {
         username:
           item.author?.id === message.client.user?.id
             ? "BLACK DRAGONS"
-            : (
-                item.member?.displayName ||
-                item.author?.username ||
-                "Unknown"
-              ),
+            : getAIUserLabel(item.author, item.member),
+        createdTimestamp: Number(item.createdTimestamp || 0),
         content:
           String(item.content || "")
             .slice(0, 2000),
@@ -518,9 +539,7 @@ async function getLiveConversation(message) {
                   reference.author?.id ||
                   "unknown",
                 username:
-                  reference.member?.displayName ||
-                  reference.author?.username ||
-                  "Unknown"
+                  getAIUserLabel(reference.author, reference.member)
               }
             : null,
         mentions:
@@ -598,6 +617,12 @@ function buildInstructions(
   return (
     "You are BLACK DRAGONS, a Discord server resident.\n\n" +
 
+    "PERMANENT CREATOR AND SERVER OWNERSHIP FACTS:\n" +
+    "- The Discord account with the exact username kenta.kakashi is Kenta Kakashi, the creator and developer of the BLACK DRAGONS bot. He built and developed you.\n" +
+    "- The Discord account with the exact username kiro_goat is Poi, the owner and founder of this Discord server. Always call him Poi. Never reproduce, spell out, or comment on the decorative/custom font in his Discord display name.\n" +
+    "- These are two different people with different roles. If asked who created/developed the bot, answer Kenta Kakashi. If asked who owns/founded the server, answer Poi. Do not swap their roles.\n" +
+    "- Identify them by their actual Discord usernames, not their display names or nicknames. These facts are permanent server identity and must not be forgotten by a conversation reset.\n\n" +
+
     "You are BLACK DRAGONS' sweet, bubbly, genuinely friendly Discord companion. " +
     "Use Nyxie's actual conversational personality as the reference: warm, welcoming, curious, expressive and naturally playful. " +
     "Adapt that personality to BLACK DRAGONS; do not import Nyxie's private relationships, owner identity, blacklist or server-specific lore.\n\n" +
@@ -649,7 +674,10 @@ function buildInstructions(
     "- Do not make every reply witty. Do not force jokes.\n" +
     "- Never turn a simple Discord conversation into an essay.\n" +
     "- Actually respond to what the user said instead of inventing a new topic.\n" +
-    "- Avoid repetitive narrator-style templates such as '[name] really out here...', '[name] finally...', '[name] just...', 'bro really...', or '[name] logging on just to...'. Do not keep describing what a person is doing as if narrating a meme.\n" +
+    "- HARD STYLE BAN: Never write narrator-style user callouts such as '[name] really out here...', '[name] really...', '[name] finally...', '[name] just...', 'bro really...', '[name] logging on just to...', or any close variation. Changing the username or verb does NOT make the template fresh.\n" +
+    "- Do not narrate a member's actions back to them. Do not turn every message into '[person] did X' or 'this guy is doing X'. Respond directly to the meaning of what they said, as another member of the chat would.\n" +
+    "- Before sending, inspect your draft: if it begins with a username/name followed by 'really', 'finally', 'out here', 'just', 'logging on', or an action description, rewrite it from scratch.\n" +
+    "- Never imitate repetitive phrasing from earlier BLACK DRAGONS bot replies in the history; previous bot messages are context only, not style examples.\n" +
     "- React to the actual meaning of the message. Vary sentence openings, rhythm, humour and conversational approach; do not just swap the username into the same joke template.\n" +
     "- Do not force a joke at someone's expense every turn. Sometimes just laugh, answer, show curiosity, share excitement, or say something sincerely friendly.\n" +
     "- If several current messages are supplied, respond to the burst as ONE turn.\n" +
@@ -1357,6 +1385,9 @@ async function processBatch(
    * Read the latest memory only when the 2-second quiet period has ended.
    * Then append the whole burst to memory in its original order.
    */
+  const generationKey = conversationKey(message.guild.id, message.channelId);
+  const requestGeneration = conversationGenerations.get(generationKey) || 0;
+
   const history =
     await aiMemory.getMessages(
       message.guild.id,
@@ -1438,7 +1469,8 @@ async function processBatch(
    * history is the primary source for understanding the current room.
    */
   const liveMessages =
-    await getLiveConversation(message);
+    (await getLiveConversation(message))
+      .filter(item => Number(item.createdTimestamp || 0) > Number(conversationState.resetAt || 0));
 
   /*
    * Do not wait for Firestore here.
@@ -1456,10 +1488,7 @@ async function processBatch(
           item.message.author.id,
 
         username:
-          item.message.member
-            ?.displayName ||
-          item.message.author
-            .username,
+          getAIUserLabel(item.message.author, item.message.member),
 
         content:
           item.message.content,
@@ -1488,9 +1517,7 @@ async function processBatch(
             item.message.author.id,
 
           username:
-            item.message.member
-              ?.displayName ||
-            item.message.author.username,
+            getAIUserLabel(item.message.author, item.message.member),
 
           content:
             item.message.content,
@@ -1547,16 +1574,6 @@ async function processBatch(
     output.messages.length
   );
 
-  void aiMemory.updateConversationState(
-    message.guild.id,
-    message.channelId,
-    {
-      ...(output.state || {}),
-      emotionalState: conversationState.emotionalState,
-      topicContext: conversationState.topicContext
-    }
-  );
-
   let memberMemorySaveFailed = false;
 
   if (output.memory) {
@@ -1581,6 +1598,21 @@ async function processBatch(
       memberMemorySaveFailed = savedFacts === null;
     }
   }
+
+  if ((conversationGenerations.get(generationKey) || 0) !== requestGeneration) {
+    console.log("🧠 BLACK DRAGONS discarded a stale reply after /wack-brain.");
+    return;
+  }
+
+  void aiMemory.updateConversationState(
+    message.guild.id,
+    message.channelId,
+    {
+      ...(output.state || {}),
+      emotionalState: conversationState.emotionalState,
+      topicContext: conversationState.topicContext
+    }
+  );
 
   const responseMessages = [...output.messages];
 
@@ -1833,5 +1865,6 @@ function getStatus(client) {
 
 module.exports = {
   handleMessage,
-  getStatus
+  getStatus,
+  resetConversation
 };
