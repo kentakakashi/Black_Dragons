@@ -1096,7 +1096,8 @@ async function callModel(
 async function sendNaturalReply(
   message,
   text,
-  gifQuery = ""
+  gifQuery = "",
+  shouldContinue = () => true
 ) {
   const chunks =
     splitForDiscord(text);
@@ -1105,11 +1106,15 @@ async function sendNaturalReply(
     return [];
   }
 
+  const sentChunks = [];
+
   for (
     let index = 0;
     index < chunks.length;
     index += 1
   ) {
+    if (!shouldContinue()) break;
+
     /*
      * Keep the first response quick. Later messages get a short,
      * length-aware pause so multi-part replies feel less mechanical.
@@ -1148,6 +1153,8 @@ async function sendNaturalReply(
         .catch(() => {});
     }
 
+    if (!shouldContinue()) break;
+
     if (index === 0) {
       await message.channel.send({
         content:
@@ -1175,12 +1182,14 @@ async function sendNaturalReply(
         }
       });
     }
+
+    sentChunks.push(chunks[index]);
   }
 
-  if (gifQuery) {
+  if (gifQuery && shouldContinue()) {
     const gifUrl = await searchGif(gifQuery);
 
-    if (gifUrl) {
+    if (gifUrl && shouldContinue()) {
       await message.channel.send({
         content: gifUrl,
         allowedMentions: {
@@ -1190,7 +1199,7 @@ async function sendNaturalReply(
     }
   }
 
-  return chunks;
+  return sentChunks;
 }
 
 async function shouldJoinConversation(
@@ -1634,7 +1643,8 @@ async function processBatch(
     await sendNaturalReply(
       batch[batch.length - 1].message,
       responseText,
-      aiConfig.gifReactions ? output.gif : ""
+      aiConfig.gifReactions ? output.gif : "",
+      () => (conversationGenerations.get(generationKey) || 0) === requestGeneration
     );
 
   /*
