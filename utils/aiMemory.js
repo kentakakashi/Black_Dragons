@@ -251,6 +251,7 @@ async function loadChannel(guildId, channelId) {
 
   const state = {
     messages,
+    resetAt: Number(snap.exists ? snap.data()?.resetAt || 0 : 0),
     conversationState: {
       topic:
         String(savedState.topic || "").slice(0, 200),
@@ -290,6 +291,7 @@ function queueWrite(guildId, channelId, state) {
 
   const snapshot = {
     messages: state.messages.slice(-MAX_MESSAGES),
+    resetAt: Number(state.resetAt || 0),
     state: {
       topic:
         String(state.conversationState?.topic || "")
@@ -331,6 +333,24 @@ function queueWrite(guildId, channelId, state) {
 
   writeQueues.set(cacheKey, next);
   return next;
+}
+
+async function resetChannelConversation(guildId, channelId) {
+  const state = await loadChannel(guildId, channelId);
+  state.messages = [];
+  state.conversationState = {
+    topic: "",
+    context: "",
+    socialMode: "casual",
+    callback: "",
+    emotionalState: "neutral",
+    topicContext: "casual",
+    participants: [],
+    updatedAt: Date.now()
+  };
+  state.resetAt = Date.now();
+  await queueWrite(guildId, channelId, state);
+  return { resetAt: state.resetAt };
 }
 
 async function appendMessage(guildId, channelId, message) {
@@ -425,7 +445,8 @@ async function getConversationState(
     updatedAt:
       Number(
         state.conversationState?.updatedAt || 0
-      )
+      ),
+    resetAt: Number(state.resetAt || 0)
   };
 }
 
@@ -489,6 +510,7 @@ async function updateConversationState(
 
 module.exports = {
   loadChannel,
+  resetChannelConversation,
   appendMessage,
   appendBotMessage,
   getMessages,
