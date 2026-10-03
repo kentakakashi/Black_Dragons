@@ -319,6 +319,27 @@ function buildCommands() {
       ),
 
     new SlashCommandBuilder()
+      .setName('roblox-link')
+      .setDescription('Link a Roblox username to a Discord member.')
+      .setDefaultMemberPermissions(
+        PermissionFlagsBits.Administrator.toString()
+      )
+      .addUserOption(option =>
+        option
+          .setName('member')
+          .setDescription('Discord member receiving the Roblox link.')
+          .setRequired(true)
+      )
+      .addStringOption(option =>
+        option
+          .setName('roblox_username')
+          .setDescription('Roblox username (plain text; do NOT add @).')
+          .setMinLength(3)
+          .setMaxLength(20)
+          .setRequired(true)
+      ),
+
+    new SlashCommandBuilder()
       .setName('rank-view')
       .setDescription(
         'View an approved Black Dragons rank.'
