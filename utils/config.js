@@ -335,7 +335,7 @@ function buildCommands() {
           .setName('roblox_username')
           .setDescription('Roblox username (plain text; do NOT add @).')
           .setMinLength(3)
-          .setMaxLength(20)
+          .setMaxLength(30)
           .setRequired(true)
       ),
 
