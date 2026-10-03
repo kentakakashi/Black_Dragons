@@ -61,9 +61,9 @@ async function execute(interaction, context) {
   const target = interaction.options.getUser("member", true);
   const inputUsername = normalizeUsername(interaction.options.getString("roblox_username", true));
 
-  if (!/^[A-Za-z0-9_]{3,20}$/.test(inputUsername)) {
+  if (!/^[A-Za-z0-9_]{3,30}$/.test(inputUsername)) {
     await interaction.reply({
-      content: "❌ Enter a Roblox **username**, not a display name or profile URL. No @ is needed. Usernames must be 3–20 letters, numbers or underscores.",
+      content: "❌ Enter a Roblox **username**, not a display name or profile URL. No @ is needed. Usernames must be 3–30 letters, numbers or underscores.",
       ephemeral: true
     });
     return;
@@ -204,7 +204,7 @@ module.exports = {
         .setName("roblox_username")
         .setDescription("Roblox username (plain text; do NOT add @).")
         .setMinLength(3)
-        .setMaxLength(20)
+        .setMaxLength(30)
         .setRequired(true)
     ),
   execute
