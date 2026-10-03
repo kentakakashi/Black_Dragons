@@ -1,5 +1,6 @@
 const { EmbedBuilder, PermissionFlagsBits, SlashCommandBuilder } = require("discord.js");
 const { getFirestore } = require("firebase-admin/firestore");
+const { saveData } = require("../utils/database");
 
 function isAdmin(interaction) {
   return interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) === true;
@@ -152,6 +153,8 @@ async function execute(interaction, context) {
 
     // Keep the running bot state in sync with the canonical players document.
     data.rankUsers[target.id] = updatedPlayer;
+    // Keep the bot's local backup and normal persistence snapshot in sync too.
+    await saveData(data);
 
     const embed = new EmbedBuilder()
       .setColor(0xC9A15B)
