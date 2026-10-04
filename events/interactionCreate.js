@@ -65,6 +65,11 @@ module.exports =
             const customId =
               interaction.customId;
 
+            if (customId.startsWith('livekills:')) {
+              const leaderboards = require('../systems/leaderboards');
+              if (await leaderboards.handleKillPageButton(interaction, client, client.appData)) return;
+            }
+
             /*
              * Tryout result controls
              */
