@@ -162,7 +162,7 @@ function killsEmbed(data,client,guildOverride=null,page=0){
   const e=new EmbedBuilder().setColor(Number.isInteger(cfg.topKillsColor)?cfg.topKillsColor:DEFAULT_CONFIG.topKillsColor)
     .setTitle(cfg.topKillsTitle||DEFAULT_CONFIG.topKillsTitle)
     .setDescription((cfg.topKillsDescription||DEFAULT_CONFIG.topKillsDescription)+"\\n\\n"+lines)
-    .setTimestamp().setFooter({text:"BLACK DRAGONS • PAGE "+(safePage+1)+"/"+totalPages+" • "+users.length+" PLAYERS"});
+    .setTimestamp().setFooter({text:"BLACK DRAGONS • LIVE • TOP • PAGE "+(safePage+1)+"/"+totalPages+" • "+users.length+" PLAYERS"});
   if(icon)e.setThumbnail(icon);return e;
 }
 
@@ -204,7 +204,7 @@ async function upsert(client,data,kind,embed){
         if(candidate.author?.id!==client.user?.id) return false;
         const embed=candidate.embeds?.[0];
         const footer=embed?.footer?.text || "";
-        return footer===footerMarker;
+        return footer.startsWith(footerMarker);
       }).sort((a,b)=>Number(b.createdTimestamp)-Number(a.createdTimestamp));
 
       if(matches.length){
