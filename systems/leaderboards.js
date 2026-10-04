@@ -1,5 +1,12 @@
-const { EmbedBuilder } = require("discord.js");
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 const { saveData } = require("../utils/database");
+
+const KILL_PAGE_SIZE = 10;
+const killLeaderboardPages = new Map();
+function killUsers(data){return Object.values(data.rankUsers||{}).filter(x=>x&&x.discordId).sort((a,b)=>(Number(b.kills)||0)-(Number(a.kills)||0));}
+function killPageButtons(page,total,messageId){const maxPage=Math.max(0,Math.ceil(total/KILL_PAGE_SIZE)-1);return new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("livekills:prev:"+messageId).setLabel("PREVIOUS").setEmoji("⬅️").setStyle(ButtonStyle.Secondary).setDisabled(page<=0),new ButtonBuilder().setCustomId("livekills:next:"+messageId).setLabel("NEXT").setEmoji("➡️").setStyle(ButtonStyle.Primary).setDisabled(page>=maxPage));}
+function pageFromMessage(message){const footer=message?.embeds?.[0]?.footer?.text||"";const match=footer.match(/PAGE (\d+)\//i);return match?Math.max(0,Number(match[1])-1):0;}
+
 
 const TITLE_DEFINITIONS = [
   { key:"shadow_monarch", name:"SHADOW MONARCH", emoji:"◈", color:0x5865F2 },
@@ -142,33 +149,21 @@ function rankingEditorEmbed(data,guild){
     .setFooter({text:"Firebase-backed configuration"});
 }
 
-function killsEmbed(data,client,guildOverride=null){
-  const cfg=ensure(data);
-  const users=Object.values(data.rankUsers||{})
-    .filter(x=>x&&x.discordId)
-    .sort((a,b)=>(Number(b.kills)||0)-(Number(a.kills)||0))
-    .slice(0,25);
-
-  const icon=guildOverride?.iconURL?.({size:256,dynamic:true,extension:"png"})
-    || client?.guilds?.cache?.first()?.iconURL?.({size:256,dynamic:true,extension:"png"});
-
-  const lines=users.length
-    ? users.map((u,i)=>{
-        const medal=i===0?"🥇":i===1?"🥈":i===2?"🥉":"#"+(i+1);
-        const rank=String(u.rank||"E").toUpperCase();
-        return medal+"  <@"+u.discordId+">\n   **Rank:** "+rank+"  •  **Kills:** "+(Number(u.kills)||0).toLocaleString("en-US");
-      }).join("\n\n")
-    : "No ranked players yet.";
-
-  const e=new EmbedBuilder()
-    .setColor(Number.isInteger(cfg.topKillsColor)?cfg.topKillsColor:DEFAULT_CONFIG.topKillsColor)
+function killsEmbed(data,client,guildOverride=null,page=0){
+  const cfg=ensure(data), users=killUsers(data);
+  const totalPages=Math.max(1,Math.ceil(users.length/KILL_PAGE_SIZE));
+  const safePage=Math.min(Math.max(0,Number(page)||0),totalPages-1);
+  const pageUsers=users.slice(safePage*KILL_PAGE_SIZE,(safePage+1)*KILL_PAGE_SIZE);
+  const icon=guildOverride?.iconURL?.({size:256,dynamic:true,extension:"png"})||client?.guilds?.cache?.first()?.iconURL?.({size:256,dynamic:true,extension:"png"});
+  const lines=pageUsers.length?pageUsers.map((u,index)=>{
+    const position=safePage*KILL_PAGE_SIZE+index, medal=position===0?"🥇":position===1?"🥈":position===2?"🥉":"#"+(position+1);
+    return medal+"  <@"+u.discordId+">\\n   **Rank:** "+String(u.rank||"E").toUpperCase()+"  •  **Kills:** "+(Number(u.kills)||0).toLocaleString("en-US");
+  }).join("\\n\\n"):"No ranked players yet.";
+  const e=new EmbedBuilder().setColor(Number.isInteger(cfg.topKillsColor)?cfg.topKillsColor:DEFAULT_CONFIG.topKillsColor)
     .setTitle(cfg.topKillsTitle||DEFAULT_CONFIG.topKillsTitle)
-    .setDescription((cfg.topKillsDescription||DEFAULT_CONFIG.topKillsDescription)+"\n\n"+lines)
-    .setTimestamp()
-    .setFooter({text:"BLACK DRAGONS • LIVE • TOP "+users.length});
-
-  if(icon) e.setThumbnail(icon);
-  return e;
+    .setDescription((cfg.topKillsDescription||DEFAULT_CONFIG.topKillsDescription)+"\\n\\n"+lines)
+    .setTimestamp().setFooter({text:"BLACK DRAGONS • PAGE "+(safePage+1)+"/"+totalPages+" • "+users.length+" PLAYERS"});
+  if(icon)e.setThumbnail(icon);return e;
 }
 
 async function upsert(client,data,kind,embed){
@@ -238,21 +233,17 @@ async function upsert(client,data,kind,embed){
     .map(state => state.roleId)
     .filter(Boolean);
 
+  const currentPage=kind==="topKills"?(message?(killLeaderboardPages.get(message.id)??pageFromMessage(message)):0):0;
+  const displayEmbed=kind==="topKills"?killsEmbed(data,client,null,currentPage):embed;
   const payload={
-    // Explicitly clear old message content. Discord keeps existing content
-    // when "content" is omitted from an edit, so simply removing the old
-    // role-mention block from the code is not enough for the already-published
-    // leaderboard message.
-    content: "",
-    embeds:[embed],
-    allowedMentions:{
-      parse:[],
-      users:[...new Set(holderIds.map(String))],
-      roles:[...new Set(roleIds.map(String))]
-    }
+    content:"",
+    embeds:[displayEmbed],
+    ...(kind==="topKills"?{components:[killPageButtons(currentPage,killUsers(data).length,message?.id||"pending")]}:{}),
+    allowedMentions:{parse:[],users:[...new Set(holderIds.map(String))],roles:[...new Set(roleIds.map(String))]}
   };
 
   if(message){
+    if(kind==="topKills"){payload.components=[killPageButtons(currentPage,killUsers(data).length,message.id)];killLeaderboardPages.set(message.id,currentPage);}
     await message.edit(payload);
 
     // If we recovered a message after a stale/missing ID, persist the repaired
@@ -263,11 +254,24 @@ async function upsert(client,data,kind,embed){
     }
   }else{
     message=await channel.send(payload);
+    if(kind==="topKills"){await message.edit({components:[killPageButtons(0,killUsers(data).length,message.id)]});killLeaderboardPages.set(message.id,0);}
     cfg[messageKey]=message.id;
     await saveData(data);
   }
 
   return {ok:true,message};
+}
+
+async function handleKillPageButton(interaction,client,data){
+  if(!interaction.customId.startsWith("livekills:"))return false;
+  const [,direction,messageId]=interaction.customId.split(":");
+  if(!interaction.message||interaction.message.id!==messageId){await interaction.reply({content:"This leaderboard control is no longer valid. Please wait for the live leaderboard to refresh.",ephemeral:true});return true;}
+  const users=killUsers(data||client.appData||{}), maxPage=Math.max(0,Math.ceil(users.length/KILL_PAGE_SIZE)-1);
+  const current=killLeaderboardPages.get(messageId)??pageFromMessage(interaction.message);
+  const next=direction==="next"?Math.min(maxPage,current+1):Math.max(0,current-1);
+  killLeaderboardPages.set(messageId,next);
+  await interaction.update({embeds:[killsEmbed(data||client.appData,client,interaction.guild,next)],components:[killPageButtons(next,users.length,messageId)],allowedMentions:{parse:[]}});
+  return true;
 }
 
 async function refreshAll(client,data){
@@ -307,6 +311,7 @@ module.exports={
   rankingEmbed,
   rankingEditorEmbed,
   killsEmbed,
+  handleKillPageButton,
   refreshAll,
   updateStyle
 };
