@@ -632,7 +632,8 @@ async function readFirestoreData() {
     rankConfigSnap,
     metaSnap,
     countersSnap,
-    tryoutsSnap
+    tryoutsSnap,
+    jailsSnap
   ] = await Promise.all([
     firestore
       .collection("config")
@@ -656,6 +657,11 @@ async function readFirestoreData() {
 
     firestore
       .collection("tryouts")
+      .doc("server")
+      .get(),
+
+    firestore
+      .collection("jails")
       .doc("server")
       .get()
   ]);
@@ -692,6 +698,10 @@ async function readFirestoreData() {
 
   if (tryoutsSnap.exists) {
     result.tryouts = tryoutsSnap.data();
+  }
+
+  if (jailsSnap.exists) {
+    result.jails = jailsSnap.data()?.records || {};
   }
 
   if (countersSnap.exists) {
@@ -1263,6 +1273,38 @@ function reconcileData(
     );
 
   /*
+   * ACTIVE JAILS
+   *
+   * Keep the newest record for each guild/user pair.
+   * Jail records are persisted separately so a bot restart cannot
+   * strand someone with the Jail role and lose their original roles.
+   */
+  {
+    const localJails = localData.jails || {};
+    const cloudJails = cloudData.jails || {};
+    const mergedJails = {};
+
+    for (const key of new Set([
+      ...Object.keys(localJails),
+      ...Object.keys(cloudJails)
+    ])) {
+      const local = localJails[key];
+      const cloud = cloudJails[key];
+      if (!local) {
+        mergedJails[key] = cloud;
+      } else if (!cloud) {
+        mergedJails[key] = local;
+      } else {
+        mergedJails[key] = Number(cloud.jailedAt || 0) >= Number(local.jailedAt || 0)
+          ? cloud
+          : local;
+      }
+    }
+
+    data.jails = mergedJails;
+  }
+
+  /*
    * BLACKLIST
    *
    * Additive by entry ID. Never touch rankUsers.
@@ -1410,6 +1452,20 @@ async function saveFirestoreData(
         { merge: true }
       )
   ]);
+
+  /*
+   * ACTIVE JAILS
+   *
+   * Replace the complete active-jail snapshot so /unjail deletions are
+   * persisted and old jail records cannot resurrect after a restart.
+   */
+  await firestore
+    .collection("jails")
+    .doc("server")
+    .set(
+      { records: clean.jails || {}, updatedAt: Date.now() },
+      { merge: false }
+    );
 
   /*
    * PLAYERS
