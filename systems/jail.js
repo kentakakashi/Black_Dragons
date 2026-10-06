@@ -91,6 +91,17 @@ async function jailMember(interaction, context) {
     await target.roles.add(jailRole, reason || "BLACK DRAGONS jail");
 
     const durationText = permanent ? "**Permanent**" : "**" + formatDuration(hours) + "**";
+
+    const jailDm = {
+      content: "⛓️ **You have been jailed in BLACK DRAGONS [BD].**\\n**Duration:** " + durationText + (reason ? "\\n**Reason:** " + reason : "")
+    };
+
+    try {
+      await target.send(jailDm);
+    } catch (dmError) {
+      console.error("⚠️ Could not DM jailed member " + target.id + ":", dmError);
+    }
+
     const confirmation = {
       content: "⛓️ **" + target + " has been thrown into jail.**\n**Duration:** " + durationText + (reason ? "\n**Reason:** " + reason : ""),
       allowedMentions: { users: [target.id] }
