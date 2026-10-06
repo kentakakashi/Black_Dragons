@@ -158,9 +158,7 @@ function killsEmbed(data,client,guildOverride=null,page=0){
   const guild = guildOverride || client?.guilds?.cache?.first() || null;
   const lines=pageUsers.length?pageUsers.map((u,index)=>{
     const position=safePage*KILL_PAGE_SIZE+index, medal=position===0?"🥇":position===1?"🥈":position===2?"🥉":"#"+(position+1);
-    const member = guild?.members?.cache?.get(String(u.discordId));
-    const displayName = member?.displayName || member?.user?.username || u.displayName || u.username || ("User " + String(u.discordId));
-    return medal+"  **"+displayName+"**\n   **Rank:** "+String(u.rank||"E").toUpperCase()+"  •  **Kills:** "+(Number(u.kills)||0).toLocaleString("en-US");
+    return medal+"  <@"+String(u.discordId)+">\n   **Rank:** "+String(u.rank||"E").toUpperCase()+"  •  **Kills:** "+(Number(u.kills)||0).toLocaleString("en-US");
   }).join("\n\n"):"No ranked players yet.";
   const e=new EmbedBuilder().setColor(Number.isInteger(cfg.topKillsColor)?cfg.topKillsColor:DEFAULT_CONFIG.topKillsColor)
     .setTitle(cfg.topKillsTitle||DEFAULT_CONFIG.topKillsTitle)
