@@ -29,6 +29,9 @@ const logging = require("../systems/logging/logger");
 const blacklistPublisher =
   require("../systems/blacklistPublisher");
 
+const jail =
+  require("../systems/jail");
+
 module.exports =
   function registerReady(
     client
@@ -43,6 +46,8 @@ module.exports =
         checkDailyReset(
           client.appData
         );
+
+        jail.startJailWatcher(client, client.appData);
 
         await registerCommandsWhenReady(
           client
