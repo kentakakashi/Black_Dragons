@@ -155,13 +155,16 @@ function killsEmbed(data,client,guildOverride=null,page=0){
   const safePage=Math.min(Math.max(0,Number(page)||0),totalPages-1);
   const pageUsers=users.slice(safePage*KILL_PAGE_SIZE,(safePage+1)*KILL_PAGE_SIZE);
   const icon=guildOverride?.iconURL?.({size:256,dynamic:true,extension:"png"})||client?.guilds?.cache?.first()?.iconURL?.({size:256,dynamic:true,extension:"png"});
+  const guild = guildOverride || client?.guilds?.cache?.first() || null;
   const lines=pageUsers.length?pageUsers.map((u,index)=>{
     const position=safePage*KILL_PAGE_SIZE+index, medal=position===0?"🥇":position===1?"🥈":position===2?"🥉":"#"+(position+1);
-    return medal+"  <@"+u.discordId+">\\n   **Rank:** "+String(u.rank||"E").toUpperCase()+"  •  **Kills:** "+(Number(u.kills)||0).toLocaleString("en-US");
-  }).join("\\n\\n"):"No ranked players yet.";
+    const member = guild?.members?.cache?.get(String(u.discordId));
+    const displayName = member?.displayName || member?.user?.username || u.displayName || u.username || ("User " + String(u.discordId));
+    return medal+"  **"+displayName+"**\n   **Rank:** "+String(u.rank||"E").toUpperCase()+"  •  **Kills:** "+(Number(u.kills)||0).toLocaleString("en-US");
+  }).join("\n\n"):"No ranked players yet.";
   const e=new EmbedBuilder().setColor(Number.isInteger(cfg.topKillsColor)?cfg.topKillsColor:DEFAULT_CONFIG.topKillsColor)
     .setTitle(cfg.topKillsTitle||DEFAULT_CONFIG.topKillsTitle)
-    .setDescription((cfg.topKillsDescription||DEFAULT_CONFIG.topKillsDescription)+"\\n\\n"+lines)
+    .setDescription((cfg.topKillsDescription||DEFAULT_CONFIG.topKillsDescription)+"\n\n"+lines)
     .setTimestamp().setFooter({text:"BLACK DRAGONS • LIVE • TOP • PAGE "+(safePage+1)+"/"+totalPages+" • "+users.length+" PLAYERS"});
   if(icon)e.setThumbnail(icon);return e;
 }
