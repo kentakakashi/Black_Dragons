@@ -97,8 +97,19 @@ async function jailMember(interaction, context) {
     return true;
   } catch (error) {
     console.error("❌ Jail failed:", error);
+    try {
+      if (target.roles.cache.has(jailRole.id)) {
+        await target.roles.remove(jailRole, "BLACK DRAGONS jail rollback");
+      }
+      if (originalRoles.length) {
+        await target.roles.add(originalRoles, "BLACK DRAGONS jail rollback");
+      }
+    } catch (rollbackError) {
+      console.error("❌ Jail rollback also failed:", rollbackError);
+    }
     delete data.jails[key];
-    return interaction.reply({ content: "❌ I could not jail that member. No jail record was saved.", ephemeral: true });
+    await saveData(data).catch(() => {});
+    return interaction.reply({ content: "❌ I could not jail that member. I rolled back the role changes.", ephemeral: true });
   }
 }
 
