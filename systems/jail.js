@@ -91,10 +91,23 @@ async function jailMember(interaction, context) {
     await target.roles.add(jailRole, reason || "BLACK DRAGONS jail");
 
     const durationText = permanent ? "**Permanent**" : "**" + formatDuration(hours) + "**";
-    await interaction.editReply({
+    const confirmation = {
       content: "⛓️ **" + target + " has been thrown into jail.**\n**Duration:** " + durationText + (reason ? "\n**Reason:** " + reason : ""),
       allowedMentions: { users: [target.id] }
-    });
+    };
+
+    try {
+      await interaction.editReply(confirmation);
+    } catch (replyError) {
+      console.error("⚠️ Could not edit /jail interaction reply:", replyError);
+      if (interaction.channel?.isTextBased()) {
+        try {
+          await interaction.channel.send(confirmation);
+        } catch (channelError) {
+          console.error("❌ Could not send /jail confirmation:", channelError);
+        }
+      }
+    }
     return true;
   } catch (error) {
     console.error("❌ Jail failed:", error);
@@ -192,10 +205,24 @@ async function unjailMember(interaction, context) {
     });
   }
 
-  return interaction.editReply({
+  const confirmation = {
     content: "🔓 **" + target + " has been released from jail.**",
     allowedMentions: { users: [target.id] }
-  });
+  };
+
+  try {
+    await interaction.editReply(confirmation);
+  } catch (replyError) {
+    console.error("⚠️ Could not edit /unjail interaction reply:", replyError);
+    if (interaction.channel?.isTextBased()) {
+      try {
+        await interaction.channel.send(confirmation);
+      } catch (channelError) {
+        console.error("❌ Could not send /unjail confirmation:", channelError);
+      }
+    }
+  }
+  return true;
 }
 
 module.exports = {
