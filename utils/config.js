@@ -305,6 +305,20 @@ function buildCommands() {
       ),
 
     new SlashCommandBuilder()
+      .setName('unjail')
+      .setDescription('Release a jailed member and restore their saved roles.')
+      .setDefaultMemberPermissions(
+        PermissionFlagsBits.Administrator.toString()
+      )
+      .setDMPermission(false)
+      .addUserOption(option =>
+        option
+          .setName('user')
+          .setDescription('Jailed member to release.')
+          .setRequired(true)
+      ),
+
+    new SlashCommandBuilder()
       .setName('purge')
       .setDescription('Delete messages and archive every deleted message in the message logs.')
       .setDefaultMemberPermissions(
