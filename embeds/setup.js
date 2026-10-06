@@ -39,6 +39,9 @@ const CATEGORIES = {
     { key: "blacklist_players", label: "Blacklisted Players Channel", type: "channel" },
     { key: "blacklist_clans", label: "Blacklisted Clans Channel", type: "channel" }
   ]},
+  jail: { label: "Jail", emoji: "⛓️", description: "Choose the role used when a member is thrown into jail.", settings: [
+    { key: "jail_role", label: "Jail Role", type: "role" }
+  ]},
   tryouts: { label: "Tryouts", emoji: "⚔️", description: "Configure the channels used by the BLACK DRAGONS tryout system.", settings: [
     { key: "tryout_rules", label: "Tryout Rules Channel", type: "channel" },
     { key: "tryout_channel", label: "Tryout Channel", type: "channel" },
@@ -108,10 +111,10 @@ const CATEGORIES = {
     { key: "leaderboard_top_kills", label: "Top Kills Channel", type: "channel" }
   ]}
 };
-const CATEGORY_ORDER = ["helpdesk", "rank_channels", "rank_roles", "logging", "blacklist", "ai", "leaderboards", "tryouts"];
+const CATEGORY_ORDER = ["helpdesk", "rank_channels", "rank_roles", "logging", "blacklist", "ai", "leaderboards", "jail", "tryouts"];
 function getSetting(c, k) { return CATEGORIES[c]?.settings.find(s => s.key === k) || null; }
 function currentValue(data, key) {
-  const h = data.config.helpDesk || {}, r = data.config.rank || {}, logs = data.config.logs?.channels || {}, bl = data.config.blacklist?.public || {}, ai = data.config.ai || {}, lb = data.config.leaderboards || {}, t = data.config.tryouts || {};
+  const h = data.config.helpDesk || {}, r = data.config.rank || {}, logs = data.config.logs?.channels || {}, bl = data.config.blacklist?.public || {}, ai = data.config.ai || {}, lb = data.config.leaderboards || {}, j = data.config.jail || {}, t = data.config.tryouts || {};
   const map = {
     helpdesk_channel:h.channelId, war_role:h.warRoleId, backup_role:h.backupRoleId,
     rank_registration:r.registrationChannelId, rank_review:r.reviewChannelId, rank_history:r.historyChannelId,
@@ -124,6 +127,7 @@ function currentValue(data, key) {
     ai_knowledge:ai.knowledge !== false, ai_web_search:ai.webSearch !== false, ai_gif_reactions:ai.gifReactions !== false,
     ai_tone:ai.tone || "casual", ai_humor:ai.humor || "medium", ai_friendliness:ai.friendliness || "warm", ai_response_length:ai.responseLength || "balanced",
     leaderboard_ranking_titles:lb.rankingChannelId, leaderboard_top_kills:lb.topKillsChannelId,
+    jail_role:j.roleId,
     tryout_rules:t.rulesChannelId, tryout_channel:t.channelId, tryout_history:t.historyChannelId, tryout_staff_role:t.staffRoleId
   };
   if(key.startsWith("rank_role_")) return r.rankRoleIds?.[key.replace("rank_role_","")] || null;
@@ -163,6 +167,7 @@ function createHomeEmbed(data, notice, guild) {
     "🚫 **Blacklist** — public player and clan blacklist channels\n"+
     "🤖 **AI Chat** — AI channel and automatic conversation setting\n"+
     "🏆 **Leaderboards** — permanent Ranking Titles and Top Kills channels\n"+
+    "⛓️ **Jail** — the role used for jailed members\n"+
     "⚔️ **Tryouts** — rules, live tryout and history channels\n\n"+
     "⚙️ Select settings one by one. Changes stay in a **draft**.\n"+
     "💾 Press **SAVE ALL** once at the end to save everything together.\n\n"+
