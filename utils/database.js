@@ -73,6 +73,10 @@ const defaultData = {
       staffRoleId: null
     },
 
+    jail: {
+      roleId: null
+    },
+
     leaderboards: {
       rankingChannelId: null,
       topKillsChannelId: null,
@@ -149,6 +153,8 @@ const defaultData = {
   rankUsers: {},
   rankApplications: [],
   rankHistory: [],
+
+  jails: {},
 
   /*
    * BLACKLIST
@@ -339,6 +345,12 @@ function normalizeData(saved = {}) {
     staffRoleId: saved.config?.tryouts?.staffRoleId || data.config.tryouts.staffRoleId || null
   };
 
+  data.config.jail = {
+    ...data.config.jail,
+    ...(saved.config?.jail || {}),
+    roleId: saved.config?.jail?.roleId || data.config.jail.roleId || null
+  };
+
   data.config.rank = {
     ...data.config.rank,
     ...(saved.config?.rank || {}),
@@ -476,6 +488,12 @@ function normalizeData(saved = {}) {
     Array.isArray(saved.rankHistory)
       ? saved.rankHistory
       : [];
+
+  data.jails =
+    saved.jails &&
+    typeof saved.jails === "object"
+      ? saved.jails
+      : {};
 
   data.blacklist = {
     players:
