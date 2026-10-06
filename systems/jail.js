@@ -184,7 +184,13 @@ async function unjailMember(interaction, context) {
     });
   }
 
-  await restoreJail(guild, record, data);
+  const restored = await restoreJail(guild, record, data);
+  if (!restored) {
+    return interaction.reply({
+      content: "❌ I could not fully restore that member's roles yet. The jail record was kept so I can retry it.",
+      ephemeral: true
+    });
+  }
 
   return interaction.reply({
     content: "🔓 **" + target + " has been released from jail.**",
