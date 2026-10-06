@@ -140,28 +140,64 @@ async function jailMember(interaction, context) {
 
 async function restoreJail(guild, record, data) {
   const key = jailKey(record.guildId, record.userId);
+
   try {
     const member = await guild.members.fetch(record.userId);
     const jailRole = guild.roles.cache.get(String(record.jailRoleId));
     const botMember = await getBotMember(guild);
 
-    if (jailRole && member.roles.cache.has(jailRole.id) && canManageRole(jailRole, botMember)) {
-      await member.roles.remove(jailRole, "BLACK DRAGONS jail expired");
+    // Restore the exact saved roles BEFORE removing the Jail role.
+    // If anything fails, keep the jail record so the operation can be retried.
+    const restoreIds = [];
+    const unavailableRoles = [];
+
+    for (const id of (record.roleIds || []).map(String)) {
+      const role = guild.roles.cache.get(id);
+
+      // A deleted role cannot be restored, so there is nothing Discord can add back.
+      if (!role) continue;
+
+      if (!canManageRole(role, botMember)) {
+        unavailableRoles.push(role);
+        continue;
+      }
+
+      if (!member.roles.cache.has(role.id)) {
+        restoreIds.push(role.id);
+      }
     }
 
-    const restoreIds = (record.roleIds || []).map(String).filter(id => {
-      const role = guild.roles.cache.get(id);
-      return role && canManageRole(role, botMember);
-    });
+    if (unavailableRoles.length) {
+      throw new Error(
+        "Cannot restore role(s): " +
+        unavailableRoles.map(role => role.name + " (" + role.id + ")").join(", ")
+      );
+    }
 
-    if (restoreIds.length) await member.roles.add(restoreIds, "BLACK DRAGONS jail expired");
+    if (restoreIds.length) {
+      await member.roles.add(restoreIds, "BLACK DRAGONS jail released");
+    }
+
+    // Only remove the Jail role after all saved roles were restored successfully.
+    if (jailRole && member.roles.cache.has(jailRole.id)) {
+      if (!canManageRole(jailRole, botMember)) {
+        throw new Error("The configured Jail Role is no longer manageable by the bot.");
+      }
+
+      await member.roles.remove(jailRole, "BLACK DRAGONS jail released");
+    }
+
+    // Verify the Jail role is actually gone before deleting the persistent record.
+    if (jailRole && member.roles.cache.has(jailRole.id)) {
+      throw new Error("The Jail Role is still present after the release attempt.");
+    }
 
     delete data.jails[key];
     await saveData(data);
-    console.log("⛓️ Restored " + member.user.tag + " after jail expired.");
+    console.log("⛓️ Restored " + member.user.tag + " after jail ended.");
     return true;
   } catch (error) {
-    console.error("❌ Could not restore jailed member " + record.userId + ":", error);
+    console.error("❌ Could not fully restore jailed member " + record.userId + ":", error);
     return false;
   }
 }
