@@ -85,8 +85,9 @@ async function jailMember(interaction, context) {
       expiresAt
     };
 
-    await target.roles.set([jailRole.id], reason || "BLACK DRAGONS jail");
     await saveData(data);
+    await target.roles.remove(originalRoles, reason || "BLACK DRAGONS jail");
+    await target.roles.add(jailRole, reason || "BLACK DRAGONS jail");
 
     const durationText = permanent ? "**Permanent**" : "**" + formatDuration(hours) + "**";
     await interaction.reply({
@@ -149,4 +150,41 @@ function startJailWatcher(client, data) {
   console.log("⛓️ Jail expiration watcher is active.");
 }
 
-module.exports = { jailMember, startJailWatcher, checkExpiredJails };
+async function unjailMember(interaction, context) {
+  const data = context.data;
+  const guild = interaction.guild;
+  const target = interaction.options.getMember("user");
+
+  if (!guild || !target) {
+    return interaction.reply({
+      content: "❌ I could not find that member in this server.",
+      ephemeral: true
+    });
+  }
+
+  data.jails ||= {};
+  const key = jailKey(guild.id, target.id);
+  const record = data.jails[key];
+
+  if (!record) {
+    return interaction.reply({
+      content: "❌ That member is not currently jailed.",
+      ephemeral: true
+    });
+  }
+
+  await restoreJail(guild, record, data);
+
+  return interaction.reply({
+    content: "🔓 **" + target + " has been released from jail.**",
+    allowedMentions: { users: [target.id] }
+  });
+}
+
+module.exports = {
+  jailMember,
+  unjailMember,
+  startJailWatcher,
+  checkExpiredJails,
+  restoreJail
+};
