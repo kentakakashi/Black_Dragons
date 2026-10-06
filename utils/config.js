@@ -270,6 +270,41 @@ function buildCommands() {
       ),
 
     new SlashCommandBuilder()
+      .setName('jail')
+      .setDescription('Throw a member into jail and restore their exact roles when the jail ends.')
+      .setDefaultMemberPermissions(
+        PermissionFlagsBits.Administrator.toString()
+      )
+      .setDMPermission(false)
+      .addUserOption(option =>
+        option
+          .setName('user')
+          .setDescription('Member to throw into jail.')
+          .setRequired(true)
+      )
+      .addIntegerOption(option =>
+        option
+          .setName('hours')
+          .setDescription('How many hours to jail them.')
+          .setMinValue(1)
+          .setMaxValue(876000)
+          .setRequired(false)
+      )
+      .addBooleanOption(option =>
+        option
+          .setName('permanent')
+          .setDescription('Keep them jailed until staff manually restores them.')
+          .setRequired(false)
+      )
+      .addStringOption(option =>
+        option
+          .setName('reason')
+          .setDescription('Optional reason shown in the jail announcement.')
+          .setMaxLength(500)
+          .setRequired(false)
+      ),
+
+    new SlashCommandBuilder()
       .setName('purge')
       .setDescription('Delete messages and archive every deleted message in the message logs.')
       .setDefaultMemberPermissions(
