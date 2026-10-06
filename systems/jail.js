@@ -93,7 +93,7 @@ async function jailMember(interaction, context) {
     const durationText = permanent ? "**Permanent**" : "**" + formatDuration(hours) + "**";
 
     const jailDm = {
-      content: "⛓️ **You have been jailed in BLACK DRAGONS [BD].**\\n**Duration:** " + durationText + (reason ? "\\n**Reason:** " + reason : "")
+      content: "⛓️ **You have been jailed in BLACK DRAGONS [BD].**\n**Duration:** " + durationText + (reason ? "\n**Reason:** " + reason : "")
     };
 
     try {
