@@ -29,29 +29,31 @@ async function jailMember(interaction, context) {
   const data = context.data;
   const guild = interaction.guild;
 
-  if (!guild) return interaction.reply({ content: "❌ /jail can only be used inside a server.", ephemeral: true });
+  await interaction.deferReply();
+
+  if (!guild) return interaction.editReply({ content: "❌ /jail can only be used inside a server.", ephemeral: true });
 
   const target = interaction.options.getMember("user");
   const hours = interaction.options.getInteger("hours");
   const permanent = interaction.options.getBoolean("permanent") === true;
   const reason = interaction.options.getString("reason")?.trim() || null;
 
-  if (!target) return interaction.reply({ content: "❌ I could not find that member in this server.", ephemeral: true });
-  if (!hours && !permanent) return interaction.reply({ content: "❌ Choose either an hours duration or set permanent to true.", ephemeral: true });
-  if (hours && permanent) return interaction.reply({ content: "❌ You cannot use hours and permanent at the same time.", ephemeral: true });
+  if (!target) return interaction.editReply({ content: "❌ I could not find that member in this server.", ephemeral: true });
+  if (!hours && !permanent) return interaction.editReply({ content: "❌ Choose either an hours duration or set permanent to true.", ephemeral: true });
+  if (hours && permanent) return interaction.editReply({ content: "❌ You cannot use hours and permanent at the same time.", ephemeral: true });
 
   const jailRole = getJailRole(data, guild);
-  if (!jailRole) return interaction.reply({ content: "❌ The Jail Role is not configured. An administrator needs to set it in /setup first.", ephemeral: true });
+  if (!jailRole) return interaction.editReply({ content: "❌ The Jail Role is not configured. An administrator needs to set it in /setup first.", ephemeral: true });
 
   const botMember = await getBotMember(guild);
-  if (!botMember.permissions.has("ManageRoles")) return interaction.reply({ content: "❌ I need the Manage Roles permission to jail members.", ephemeral: true });
-  if (!canManageRole(jailRole, botMember)) return interaction.reply({ content: "❌ I cannot manage the configured Jail Role. Move it below my highest role.", ephemeral: true });
-  if (target.id === guild.ownerId) return interaction.reply({ content: "❌ I cannot jail the server owner.", ephemeral: true });
-  if (!target.manageable) return interaction.reply({ content: "❌ I cannot manage that member. Their highest role is at or above mine.", ephemeral: true });
+  if (!botMember.permissions.has("ManageRoles")) return interaction.editReply({ content: "❌ I need the Manage Roles permission to jail members.", ephemeral: true });
+  if (!canManageRole(jailRole, botMember)) return interaction.editReply({ content: "❌ I cannot manage the configured Jail Role. Move it below my highest role.", ephemeral: true });
+  if (target.id === guild.ownerId) return interaction.editReply({ content: "❌ I cannot jail the server owner.", ephemeral: true });
+  if (!target.manageable) return interaction.editReply({ content: "❌ I cannot manage that member. Their highest role is at or above mine.", ephemeral: true });
 
   const key = jailKey(guild.id, target.id);
   data.jails ||= {};
-  if (data.jails[key]) return interaction.reply({ content: "❌ That member is already jailed.", ephemeral: true });
+  if (data.jails[key]) return interaction.editReply({ content: "❌ That member is already jailed.", ephemeral: true });
 
   const originalRoles = [...target.roles.cache.values()]
     .filter(role => role.id !== guild.id && role.id !== jailRole.id && !role.managed)
@@ -62,9 +64,8 @@ async function jailMember(interaction, context) {
     .filter(role => role && !canManageRole(role, botMember));
 
   if (unmanageable.length) {
-    return interaction.reply({
+    return interaction.editReply({
       content: "❌ I cannot safely jail this member because I cannot remove these role(s): " + unmanageable.map(role => role.toString()).join(", ") + ". Move those roles below my highest role first.",
-      ephemeral: true,
       allowedMentions: { roles: [] }
     });
   }
@@ -90,7 +91,7 @@ async function jailMember(interaction, context) {
     await target.roles.add(jailRole, reason || "BLACK DRAGONS jail");
 
     const durationText = permanent ? "**Permanent**" : "**" + formatDuration(hours) + "**";
-    await interaction.reply({
+    await interaction.editReply({
       content: "⛓️ **" + target + " has been thrown into jail.**\n**Duration:** " + durationText + (reason ? "\n**Reason:** " + reason : ""),
       allowedMentions: { users: [target.id] }
     });
@@ -109,7 +110,7 @@ async function jailMember(interaction, context) {
     }
     delete data.jails[key];
     await saveData(data).catch(() => {});
-    return interaction.reply({ content: "❌ I could not jail that member. I rolled back the role changes.", ephemeral: true });
+    return interaction.editReply({ content: "❌ I could not jail that member. I rolled back the role changes.", ephemeral: true });
   }
 }
 
@@ -166,10 +167,11 @@ async function unjailMember(interaction, context) {
   const guild = interaction.guild;
   const target = interaction.options.getMember("user");
 
+  await interaction.deferReply();
+
   if (!guild || !target) {
-    return interaction.reply({
+    return interaction.editReply({
       content: "❌ I could not find that member in this server.",
-      ephemeral: true
     });
   }
 
@@ -178,21 +180,19 @@ async function unjailMember(interaction, context) {
   const record = data.jails[key];
 
   if (!record) {
-    return interaction.reply({
+    return interaction.editReply({
       content: "❌ That member is not currently jailed.",
-      ephemeral: true
     });
   }
 
   const restored = await restoreJail(guild, record, data);
   if (!restored) {
-    return interaction.reply({
+    return interaction.editReply({
       content: "❌ I could not fully restore that member's roles yet. The jail record was kept so I can retry it.",
-      ephemeral: true
     });
   }
 
-  return interaction.reply({
+  return interaction.editReply({
     content: "🔓 **" + target + " has been released from jail.**",
     allowedMentions: { users: [target.id] }
   });
