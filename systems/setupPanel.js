@@ -19,6 +19,7 @@ async function hydrateSetupChannels(guild,data){
   const ai=c.ai||{};
   const lb=c.leaderboards||{};
   const t=c.tryouts||{};
+  const j=c.jail||{};
   for(const id of [h.channelId,r.registrationChannelId,r.reviewChannelId,r.historyChannelId,r.leaderboardChannelId,b.playerChannelId,b.clanChannelId,ai.channelId,lb.rankingChannelId,lb.topKillsChannelId,t.rulesChannelId,t.channelId,t.historyChannelId,...Object.values(l)]){
     if(id) ids.add(String(id));
   }
@@ -28,7 +29,8 @@ async function hydrateSetupChannels(guild,data){
   const roleIds=new Set([
     ...Object.values(r.rankRoleIds||{}),
     ...Object.values(lb.rankingRoleIds||{}),
-    t.staffRoleId
+    t.staffRoleId,
+    j.roleId
   ].filter(Boolean).map(String));
   for(const id of [h.warRoleId,h.backupRoleId,...roleIds]){
     if(id) try{await guild.roles.fetch(String(id));}catch{}
@@ -77,7 +79,9 @@ function val(c,k,s){
 async function startSetup(i,d){if(!admin(i))return i.reply({content:"❌ You need **Administrator** permission.",ephemeral:true});const s={messageId:null,draft:draft(d)};await hydrateSetupChannels(i.guild,s.draft);const r=await i.reply({embeds:[createHomeEmbed(view(d,s),null,i.guild)],components:home(),fetchReply:true});s.messageId=r.id;sessions.set(sid(i),s)}
 async function saveAll(i,d,s){d.config=s.draft.config;d.rankConfig=s.draft.rankConfig;d.config.logs ||= {categoryId:null,channels:{}};d.config.logs.channels ||= {};d.config.ai ||= {enabled:true,channelId:null,autoChat:false,knowledge:true,webSearch:true,gifReactions:true,tone:"casual",humor:"medium",friendliness:"warm",responseLength:"balanced"};d.config.blacklist ||= {};d.config.blacklist.public ||= {enabled:false,playerChannelId:null,clanChannelId:null,playerMessages:{},clanMessages:{}};d.config.leaderboards ||= {rankingChannelId:null,topKillsChannelId:null,rankingMessageId:null,topKillsMessageId:null,rankingRoleIds:{},titles:{}};
   d.config.leaderboards.rankingRoleIds ||= {};
-  d.config.tryouts ||= {rulesChannelId:null,channelId:null,historyChannelId:null,staffRoleId:null};try{if(Object.values(d.config.logs.channels).some(Boolean)||d.config.logs.categoryId)await logging.ensure(i.guild,d);await saveData(d);sessions.delete(sid(i));await i.editReply({embeds:[createHomeEmbed(d,"✅ **ALL SETUP SAVED SUCCESSFULLY.**",i.guild)],components:[]})}catch(e){console.error("❌ Setup save failed:",e);await i.editReply({content:"❌ Setup could not be saved. Check that the bot has **Manage Channels** permission.",embeds:[],components:[]})}}
+  d.config.tryouts ||= {rulesChannelId:null,channelId:null,historyChannelId:null,staffRoleId:null};
+  d.config.jail ||= {roleId:null};
+  try{if(Object.values(d.config.logs.channels).some(Boolean)||d.config.logs.categoryId)await logging.ensure(i.guild,d);await saveData(d);sessions.delete(sid(i));await i.editReply({embeds:[createHomeEmbed(d,"✅ **ALL SETUP SAVED SUCCESSFULLY.**",i.guild)],components:[]})}catch(e){console.error("❌ Setup save failed:",e);await i.editReply({content:"❌ Setup could not be saved. Check that the bot has **Manage Channels** permission.",embeds:[],components:[]})}}
 async function handleSetupButton(i,d){if(!i.customId.startsWith("setup_"))return false;if(i.isStringSelectMenu?.()||i.isRoleSelectMenu?.()||i.isChannelSelectMenu?.())return handleSetupSelect(i,d);const s=check(i);if(typeof s==="string"){await i.reply({content:s,ephemeral:true});return true}if(i.customId.startsWith("setup_toggle:")){
  const p=i.customId.split(":");
  const c=p[1],k=p[2],v=p[3],set=getSetting(c,k);
@@ -102,5 +106,6 @@ else if(k==="ai_friendliness")d.config.ai.friendliness=v;
 else if(k==="ai_response_length")d.config.ai.responseLength=v;
 else if(k.startsWith("leaderboard_role_"))d.config.leaderboards.rankingRoleIds[k.slice(17)]=v;
 else if(k==="leaderboard_ranking_titles")d.config.leaderboards.rankingChannelId=v;
-else if(k==="leaderboard_top_kills")d.config.leaderboards.topKillsChannelId=v;else if(k==="tryout_rules")d.config.tryouts.rulesChannelId=v;else if(k==="tryout_channel")d.config.tryouts.channelId=v;else if(k==="tryout_history")d.config.tryouts.historyChannelId=v;else if(k==="tryout_staff_role")d.config.tryouts.staffRoleId=v;d.rankConfig={...(d.rankConfig||{}),registrationChannelId:d.config.rank.registrationChannelId,reviewChannelId:d.config.rank.reviewChannelId,historyChannelId:d.config.rank.historyChannelId,rankRoleIds:{...((d.rankConfig||{}).rankRoleIds||{}),...(d.config.rank.rankRoleIds||{})}}}
+else if(k==="leaderboard_top_kills")d.config.leaderboards.topKillsChannelId=v;else if(k==="jail_role")d.config.jail.roleId=v;
+else if(k==="tryout_rules")d.config.tryouts.rulesChannelId=v;else if(k==="tryout_channel")d.config.tryouts.channelId=v;else if(k==="tryout_history")d.config.tryouts.historyChannelId=v;else if(k==="tryout_staff_role")d.config.tryouts.staffRoleId=v;d.rankConfig={...(d.rankConfig||{}),registrationChannelId:d.config.rank.registrationChannelId,reviewChannelId:d.config.rank.reviewChannelId,historyChannelId:d.config.rank.historyChannelId,rankRoleIds:{...((d.rankConfig||{}).rankRoleIds||{}),...(d.config.rank.rankRoleIds||{})}}}
 module.exports={startSetup,handleSetupButton,handleSetupSelect};
